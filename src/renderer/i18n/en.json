@@ -71,7 +71,8 @@
   "projects": {
     "subtitle": "Everything you built, in one place.",
     "placeholder": "Your projects will appear here once you choose a folder.",
-    "count": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}"
+    "count": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}",
+    "placeholderFolder": "Projects from this folder will appear here."
   },
   "history": {
     "subtitle": "Every saved version, so you can always go back.",
@@ -82,5 +83,100 @@
     "command": "Command",
     "port": "Port",
     "folder": "Folder"
+  },
+  "common": {
+    "continue": "Continue",
+    "back": "Back",
+    "tryAgain": "Try again",
+    "checkAgain": "Check again",
+    "notNow": "Not now",
+    "openOfficialPage": "Open the official page",
+    "checking": "Checking…",
+    "step": "Step {current} of {total}"
+  },
+  "prereq": {
+    "title": "Let's check your computer",
+    "subtitle": "Revive works with a few tools on your computer. Checking takes a few seconds.",
+    "allReady": "Everything is ready.",
+    "status": {
+      "ready": "Ready",
+      "missing": "Missing",
+      "notSignedIn": "Not signed in",
+      "optional": "Not installed, optional",
+      "recommended": "Missing, recommended"
+    },
+    "tool": {
+      "claude": {
+        "name": "Claude Code",
+        "purpose": "Reads your projects and explains them in plain words."
+      },
+      "signIn": {
+        "name": "Your Claude account",
+        "purpose": "Claude Code works through your own Claude account."
+      },
+      "git": {
+        "name": "Git",
+        "purpose": "Keeps saved versions, so you can always go back."
+      },
+      "node": {
+        "name": "Node.js",
+        "purpose": "Needed to start most website projects."
+      },
+      "codex": {
+        "name": "Codex",
+        "purpose": "Another coding assistant. Not needed."
+      }
+    },
+    "install": {
+      "title": "Claude Code isn't installed yet",
+      "body": "Claude Code is the assistant that reads your projects. Revive can install it for you with Anthropic's official installer. It takes about a minute and doesn't ask for your password.",
+      "button": "Install for me",
+      "confirmTitle": "Install Claude Code now?",
+      "confirmBody": "Revive will download Anthropic's official installer from claude.ai and run it. It only installs into your own home folder.",
+      "confirmButton": "Yes, install Claude Code",
+      "running": "Installing Claude Code. This takes about a minute.",
+      "failed": "The installation didn't finish. You can try again, or install from the official page.",
+      "done": "Claude Code is installed."
+    },
+    "signIn": {
+      "title": "Sign in to your Claude account",
+      "body": "Claude Code needs a Claude Pro, Max, Team or Enterprise account. Your browser will open the sign-in page. Come back here when you're done.",
+      "button": "Sign in",
+      "waiting": "Waiting for you to finish signing in, in your browser…",
+      "failed": "We couldn't confirm that you signed in. Try again, or type this in Terminal and follow the steps:",
+      "done": "You're signed in."
+    },
+    "git": {
+      "title": "Git isn't installed",
+      "body": "Git keeps your saved versions. On a Mac it comes with Apple's free developer tools. Install them, then check again."
+    },
+    "node": {
+      "note": "Without Node.js, Revive can read your projects but can't start most of them. You can install it later."
+    },
+    "output": "What the installer is doing",
+    "versions": "Versions found"
+  },
+  "folder": {
+    "title": "Which folder holds your projects?",
+    "subtitle": "Pick the folder where you build with Claude Code or Codex. It can hold many projects.",
+    "drop": "Drop a folder here",
+    "or": "or",
+    "choose": "Choose a folder",
+    "recent": "Recent folders",
+    "notFound": "Not found",
+    "problem": {
+      "missing": "We couldn't find that folder. It may have been moved or renamed.",
+      "not-directory": "That's a file, not a folder. Drop the folder that holds it.",
+      "too-broad": "That folder is too big to read as one place. Pick the folder that holds your projects.",
+      "unreadable": "Revive can't open that folder. Check that you have permission to open it."
+    },
+    "promises": {
+      "title": "Your files are safe",
+      "readOnly": "Revive only reads your projects. Its own notes go into a hidden folder inside the one you choose.",
+      "versions": "A version is saved before every change, so you can always go back.",
+      "noServers": "Revive has no servers. Claude reads your code through your own Claude account."
+    },
+    "change": "Choose another folder",
+    "current": "Current folder"
   }
 }

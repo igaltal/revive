@@ -27,11 +27,12 @@ describe('first run', () => {
     const mock = installMockRevive({ uiLanguage: null })
     renderApp()
     fireEvent.click(await screen.findByTestId('welcome-he'))
-    await screen.findByTestId('nav-projects')
+    // Next comes the computer check, already in Hebrew and right to left.
+    const step = await screen.findByTestId('onboarding-step')
     expect(mock.settings().uiLanguage).toBe('he')
     expect(document.documentElement.dir).toBe('rtl')
     expect(document.documentElement.lang).toBe('he')
-    expect(screen.getByTestId('nav-projects').textContent).toBe('הפרויקטים שלי')
+    expect(step.textContent).toBe('שלב 1 מתוך 2')
   })
 })
 

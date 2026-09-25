@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [ ] M2 · [ ] M3 · [ ] M4 · [ ] M5
+- [x] M1 · [x] M2 · [ ] M3 · [ ] M4 · [ ] M5
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -166,3 +166,23 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 - **Environment note.** The Electron binary download from GitHub kept getting cut off, so I installed it from `npmmirror.com`. The installer verifies it against Electron's bundled checksums.
 
 *Try it:* `cd Revive && npm run dev`. With a fresh settings folder you get the language choice first. For a clean first run, use `REVIVE_USER_DATA=$(mktemp -d) npm run dev`. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M2: done (2026-09-25)
+- **Flow.** Language → "Let's check your computer" (step 1 of 2) → "Which folder holds your projects?" (step 2 of 2) → My projects. Full-screen steps have the עברית | English switch in the top bar. On later launches the app goes straight to My projects. "Choose another folder" lists recent folders, marking any that no longer exist.
+- **Prerequisite check** (`src/main/prereq.ts`). Checks Claude Code (version plus `claude auth status --json`, reading **only** `loggedIn`; email and org are dropped), git, Node.js (recommended, not required) and Codex (optional). Continue needs Claude Code installed and signed in, plus git. On a Mac without developer tools, `/usr/bin/git` is a stub that pops up Apple's installer, so `xcode-select -p` is checked first and the stub is never run.
+- **PATH.** Apps opened from Finder don't get the shell's PATH, so it's read once from the login shell (`$SHELL -ilc`), in parallel with window creation, with `~/.local/bin` and Homebrew as fallbacks.
+- **Install Claude Code.** An explanation, then "Install for me" or "Open the official page". "Install for me" opens a confirmation panel that shows the exact command under Technical details. Only confirming runs it. The command is a constant in `src/shared/prereq.ts`, `curl -fsSL https://claude.ai/install.sh | bash` (checked against code.claude.com/docs/en/setup), and nothing from the renderer can change it. Output streams masked. The check re-runs automatically when it ends.
+- **Sign in.** "Sign in" runs `claude auth login` in a node-pty terminal, which opens the browser. The sign-in status is polled every 2 s (5-minute cap). If it fails, the app says so in one sentence and shows `claude` as a Terminal fallback in an LTR block. The check re-runs automatically.
+- **Folder.** Native picker or drag and drop (`webUtils.getPathForFile` in preload). Main resolves symlinks and refuses missing folders, files, unreadable folders, and folders that are too broad (`/`, home, `/Users`, system folders, `~/Library`), each with one plain sentence.
+- **Safety promises** on the folder step are worded to be true: Revive only reads, it has no servers, and Claude reads code through the user's own account. I didn't use the PRD's "your code stays on your computer": Claude Code sends code it reads to Anthropic, so that line wouldn't be true.
+- **Masking.** `src/shared/redact.ts` handles token shapes, secret-named assignments, auth headers, URL passwords, long random strings (git hashes kept), and exact values from `.env` files (used from M4). All task output shown in the UI goes through it.
+- **Quit** kills any install or sign-in process Revive started.
+- **node-pty** is added now (needed for sign-in). `postinstall` runs `electron-rebuild -f -w node-pty`.
+- **Fixture.** `fixtures/sample-folder/` (static bakery site, Vite habit counter, a loose `notes.txt`). e2e tests copy it to a temp folder.
+- **Found while checking screenshots.** `transition-transform` animated the RTL mirroring of the chevrons (a visible flip on language switch). Only rotation animates now, and a test bans transform transitions in the renderer.
+- **Tests.** 46 unit and component tests. These include "the installer never runs before the user confirms" and "Node missing still lets you continue". The Electron smoke test covers: first run in Hebrew, the real prerequisite check on this machine, the language switch in the top bar keeping the step, folder pick, relaunch straight to My projects, and the recent folder listed.
+
+**Carry into M3:** the scan must also **deny reading `.env*` files** (a permission deny rule), so key values never reach Claude. That's in addition to the write restriction to `.revive/`.
+
+*Try it:* `REVIVE_USER_DATA=$(mktemp -d) npm run dev`. Pick a language, watch the check, try drag and drop with a folder (try your home folder to see the "too big" message), then relaunch without the env var to reach your real settings.
+

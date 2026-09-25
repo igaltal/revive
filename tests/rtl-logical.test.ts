@@ -38,4 +38,11 @@ describe('logical properties only', () => {
       .filter((f) => PHYSICAL_CSS.test(readFileSync(f, 'utf8')))
     expect(offenders).toEqual([])
   })
+
+  it('never animates transforms, so mirrored icons flip instantly when the language changes', () => {
+    const offenders = files('src/renderer')
+      .filter((f) => /\.(tsx|ts)$/.test(f) && !f.endsWith('.test.tsx'))
+      .filter((f) => /\btransition-(?:transform|all)\b/.test(readFileSync(f, 'utf8')))
+    expect(offenders).toEqual([])
+  })
 })

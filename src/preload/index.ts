@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { EVENT_CHANNELS, REQUEST_CHANNELS, type ReviveApi } from '../shared/ipc'
 
 const requests = new Set<string>(REQUEST_CHANNELS)
@@ -14,7 +14,8 @@ const api: ReviveApi = {
     const wrapped = (_e: IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload)
     ipcRenderer.on(event, wrapped)
     return () => ipcRenderer.removeListener(event, wrapped)
-  }
+  },
+  pathForFile: (file) => webUtils.getPathForFile(file)
 }
 
 contextBridge.exposeInMainWorld('revive', api)

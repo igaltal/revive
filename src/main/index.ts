@@ -2,6 +2,9 @@ import { app, BrowserWindow, session } from 'electron'
 import { join } from 'node:path'
 import { SettingsStore } from './settings-store'
 import { registerIpc } from './ipc/register'
+import { exec } from './exec'
+import { loadShellPath } from './shell-env'
+import { killAllTasks } from './tasks'
 
 const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 let mainWindow: BrowserWindow | null = null
@@ -60,7 +63,9 @@ function lockDownNetwork(): void {
 void app.whenReady().then(() => {
   const settings = new SettingsStore(app.getPath('userData'))
   lockDownNetwork()
-  registerIpc({ settings, getWindow: () => mainWindow })
+  // Loaded in parallel with the window so startup stays fast.
+  const shellReady = loadShellPath(exec)
+  registerIpc({ settings, getWindow: () => mainWindow, shellReady })
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -68,4 +73,7 @@ void app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => app.quit())
+
+// Nothing Revive started may outlive it.
+app.on('will-quit', () => killAllTasks())
 

@@ -14,9 +14,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "electron-vite build && playwright test"
+    "test:e2e": "electron-vite build && playwright test",
+    "postinstall": "electron-rebuild -f -w node-pty"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@eslint/js": "^10.0.1",
     "@formatjs/icu-messageformat-parser": "^3.5.20",
     "@playwright/test": "^1.63.0",
@@ -46,6 +48,7 @@
     "i18next": "^26.4.2",
     "i18next-icu": "^2.4.4",
     "intl-messageformat": "^11.2.15",
+    "node-pty": "^1.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.15",
