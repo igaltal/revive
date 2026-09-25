@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@import './fonts.css';
+
+/* Design tokens. Warm, light, no gradients. */
+@theme {
+  --color-bg: #f4f2ec;
+  --color-card: #ffffff;
+  --color-border: #e4e0d8;
+  --color-ink: #1b1a17;
+  --color-muted: #6b675e;
+  --color-accent: #d9480f;
+  --color-running: #1e8e4e;
+  --color-verified: #2563eb;
+  --color-attention: #b7791f;
+  --color-broken: #b42318;
+
+  --font-display: 'Frank Ruhl Libre', 'IBM Plex Sans Hebrew', serif;
+  --font-sans: 'IBM Plex Sans Hebrew', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-control: 10px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  bdi {
+    unicode-bidi: isolate;
+  }
+}

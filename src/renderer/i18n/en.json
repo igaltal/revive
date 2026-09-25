@@ -1,0 +1,86 @@
+{
+  "app": {
+    "name": "Revive",
+    "tagline": "A calm home for everything you build with AI"
+  },
+  "vocab": {
+    "start": "Start",
+    "stop": "Stop",
+    "runningNow": "Running now",
+    "checkedAndWorking": "Checked and working",
+    "needsFixing": "Needs fixing",
+    "notCheckedYet": "Not checked yet",
+    "keysAndConnections": "Keys and connections",
+    "goLive": "Go live",
+    "theLiveSite": "The live site",
+    "savedVersion": "Saved version",
+    "goBackToThisVersion": "Go back to this version",
+    "technicalDetails": "Technical details",
+    "open": "Open",
+    "checkIfItWorks": "Check if it works",
+    "myProjects": "My projects",
+    "settings": "Settings",
+    "history": "History"
+  },
+  "nav": {
+    "label": "Main menu"
+  },
+  "language": {
+    "switchLabel": "Language",
+    "he": "עברית",
+    "en": "English"
+  },
+  "welcome": {
+    "title": "Which language should Revive speak?",
+    "subtitle": "You can change it any time, from the side menu or from Settings.",
+    "continueIn": "Continue in English",
+    "direction": "Left to right"
+  },
+  "settings": {
+    "subtitle": "How Revive looks and talks to you.",
+    "interface": {
+      "title": "Interface language",
+      "hint": "Changes every word and the direction of every screen, right away.",
+      "sample": "Hello",
+      "rtl": "Right to left",
+      "ltr": "Left to right"
+    },
+    "claude": {
+      "title": "Claude answers in",
+      "hint": "The language Claude uses when it tells you what it found or what it changed.",
+      "same": "Same as the interface",
+      "he": "Always Hebrew",
+      "en": "Always English"
+    },
+    "detail": {
+      "title": "Detail level",
+      "simple": "Simple",
+      "simpleHint": "Plain words. Commands, ports and logs stay folded away until you open them.",
+      "advanced": "Advanced",
+      "advancedHint": "Commands, ports, paths and logs are open on every screen.",
+      "example": "This is how technical details will look:"
+    },
+    "scanModel": {
+      "title": "Model for reading your folder",
+      "hint": "The Claude model used when Revive reads a folder. The default is quick and inexpensive.",
+      "haiku": "Quick and inexpensive",
+      "sonnet": "More thorough, costs more"
+    },
+    "version": "Revive {version}"
+  },
+  "projects": {
+    "subtitle": "Everything you built, in one place.",
+    "placeholder": "Your projects will appear here once you choose a folder.",
+    "count": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}"
+  },
+  "history": {
+    "subtitle": "Every saved version, so you can always go back.",
+    "placeholder": "Saved versions will be listed here, each with a plain title and a time.",
+    "keysNote": "Keys are never included in saved versions."
+  },
+  "technical": {
+    "command": "Command",
+    "port": "Port",
+    "folder": "Folder"
+  }
+}
