@@ -70,9 +70,21 @@
   },
   "projects": {
     "subtitle": "Everything you built, in one place.",
-    "placeholder": "Your projects will appear here once you choose a folder.",
     "count": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}",
-    "placeholderFolder": "Projects from this folder will appear here."
+    "notRead": {
+      "title": "Revive hasn't read this folder yet",
+      "body": "Claude will look through the folder and describe each project in plain words. It only reads, and Revive saves a version first."
+    },
+    "read": "Read my folder",
+    "readAgain": "Read the folder again",
+    "found": "{count, plural, =0 {Claude didn't find any projects.} one {Found # project.} other {Found # projects.}}",
+    "cost": "Claude reported this reading as about {cost, number, ::currency/USD} of usage.",
+    "lastRead": "Last read {date, date, medium}, {date, time, short}",
+    "empty": "Claude didn't find any projects in this folder.",
+    "invalid": "Revive's list of projects for this folder can't be read. Reading the folder again will fix it.",
+    "checkComputer": "Check my computer",
+    "loose": "{count, plural, one {# file isn't part of any project.} other {# files aren't part of any project.}}",
+    "looseList": "Loose files"
   },
   "history": {
     "subtitle": "Every saved version, so you can always go back.",
@@ -82,7 +94,14 @@
   "technical": {
     "command": "Command",
     "port": "Port",
-    "folder": "Folder"
+    "folder": "Folder",
+    "stack": "Built with",
+    "install": "Install command",
+    "dev": "Start command",
+    "keys": "Key names",
+    "notes": "Notes from the reading",
+    "notFound": "Not found",
+    "model": "Model"
   },
   "common": {
     "continue": "Continue",
@@ -178,5 +197,48 @@
     },
     "change": "Choose another folder",
     "current": "Current folder"
+  },
+  "scan": {
+    "title": "Reading your folder",
+    "badge": "Reading only",
+    "phase": {
+      "saving": "Saving a version first, so nothing can be lost.",
+      "reading": "Claude is reading your projects.",
+      "checking": "Making sure nothing outside Revive's folder changed.",
+      "done": "Done."
+    },
+    "timeNote": "This usually takes a minute or two.",
+    "filesRead": "{count, plural, one {# file read} other {# files read}}",
+    "projectsFound": "{count, plural, =0 {No projects found yet} one {# project found} other {# projects found}}",
+    "rootProject": "The folder itself",
+    "recent": "Files Claude read just now",
+    "stop": "Stop reading",
+    "limits": "Limits for this reading"
+  },
+  "scanError": {
+    "version_failed": "Revive couldn't save a version first, so it didn't read the folder. Nothing was changed.",
+    "claude_missing": "Claude Code isn't installed, so Revive can't read the folder yet.",
+    "auth": "You're signed out of Claude, so the reading didn't start.",
+    "modified_outside": "Claude changed files outside Revive's folder, so Revive put them back the way they were.",
+    "invalid_manifest": "Claude's list of projects came back unreadable, so Revive kept what it had before.",
+    "limit": "The reading reached its safety limit and stopped. Big folders sometimes need a second try.",
+    "timeout": "Reading took more than 10 minutes, so Revive stopped it.",
+    "cancelled": "You stopped the reading. Nothing outside Revive's folder changed.",
+    "unknown": "Something went wrong while reading the folder, and we're not sure why yet.",
+    "restored": "Put back the way they were:",
+    "quarantined": "New files, moved aside into Revive's folder:",
+    "unrestorable": "Changed, but not part of the saved version:",
+    "issues": "What was wrong:",
+    "log": "What Claude said:"
+  },
+  "card": {
+    "noDescription": "No description yet."
+  },
+  "project": {
+    "what": "What it is",
+    "previewSoon": "A live picture of this project will appear here once it has been started.",
+    "keysNone": "This project doesn't need any keys.",
+    "keyNeeded": "Needed",
+    "keyOptional": "Optional"
   }
 }

@@ -5,9 +5,19 @@ import { registerIpc } from './ipc/register'
 import { exec } from './exec'
 import { loadShellPath } from './shell-env'
 import { killAllTasks } from './tasks'
+import { ScanController } from './scanner/controller'
+import { claudeAdapter } from './scanner/claude-adapter'
+import { fakeAdapter } from './scanner/fake-adapter'
+import { send } from './ipc/register'
 
 const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 let mainWindow: BrowserWindow | null = null
+// End-to-end tests of dev builds can swap Claude for an offline fake. Never in a packaged app.
+const testAgent = !app.isPackaged ? process.env['REVIVE_TEST_AGENT'] : undefined
+const scans = new ScanController(testAgent ? fakeAdapter(testAgent) : claudeAdapter, {
+  progress: (p) => send(mainWindow, 'scan:progress', p),
+  done: (d) => send(mainWindow, 'scan:done', d)
+})
 
 // Tests run against a throwaway settings folder.
 if (process.env['REVIVE_USER_DATA']) app.setPath('userData', process.env['REVIVE_USER_DATA'])
@@ -65,7 +75,7 @@ void app.whenReady().then(() => {
   lockDownNetwork()
   // Loaded in parallel with the window so startup stays fast.
   const shellReady = loadShellPath(exec)
-  registerIpc({ settings, getWindow: () => mainWindow, shellReady })
+  registerIpc({ settings, getWindow: () => mainWindow, shellReady, scans })
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -75,5 +85,8 @@ void app.whenReady().then(() => {
 app.on('window-all-closed', () => app.quit())
 
 // Nothing Revive started may outlive it.
-app.on('will-quit', () => killAllTasks())
+app.on('will-quit', () => {
+  scans.abortAll()
+  killAllTasks()
+})
 

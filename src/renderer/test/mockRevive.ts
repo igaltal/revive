@@ -30,6 +30,9 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     },
     'prereq:check': () => READY_REPORT,
     'folder:recent': () => [],
+    'manifest:get': () => ({ state: 'none' }),
+    'scan:active': () => null,
+    'scan:start': () => ({ scanId: 'scan-1' }),
     'folder:check': (a) => {
       const path = (a as { path: string }).path
       return { ok: true, path, name: path.split('/').pop() }

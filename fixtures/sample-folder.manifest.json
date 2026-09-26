@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "scanned_at": "2026-09-26T10:00:00.000Z",
+  "projects": [
+    {
+      "id": "bakery-site",
+      "name": "Sunrise Bakery",
+      "path": "bakery-site",
+      "description": { "en": "A one-page website for a neighborhood bakery, with opening hours and ordering info.", "he": "אתר של עמוד אחד למאפייה שכונתית, עם שעות פתיחה ומידע על הזמנות." },
+      "stack": ["html", "css"],
+      "status": "unknown",
+      "run": { "install": null, "dev": null, "port": null, "url": null, "verified_at": null },
+      "keys": [],
+      "notes": ["Static page: open index.html in a browser or serve the folder."],
+      "user_locked": []
+    },
+    {
+      "id": "habit-counter",
+      "name": "Habit counter",
+      "path": "habit-counter",
+      "description": { "en": "A small page that counts how many days in a row you kept a habit.", "he": "עמוד קטן שסופר כמה ימים ברצף שמרתם על הרגל." },
+      "stack": ["vite", "javascript"],
+      "status": "unknown",
+      "run": { "install": "npm install", "dev": "npm run dev", "port": 5199, "url": "http://localhost:5199", "verified_at": null },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    }
+  ],
+  "loose_files": ["notes.txt"],
+  "suggested_reorg": []
+}

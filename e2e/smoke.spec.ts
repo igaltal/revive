@@ -37,3 +37,53 @@ test('first run: language, computer check, folder, then straight to My projects 
   await expect(win2.getByTestId('recent-folder')).toContainText('my-ai-projects')
   await again.close()
 })
+
+test('read the folder: saved version first, progress, gallery, nothing outside .revive changed', async () => {
+  const { readFileSync, readdirSync, statSync, existsSync } = await import('node:fs')
+  const { join, relative } = await import('node:path')
+  const userData = freshUserData()
+  const folder = sampleFolder()
+  const snapshot = () => {
+    const out: Record<string, string> = {}
+    const walk = (d: string) => {
+      for (const n of readdirSync(d)) {
+        const p = join(d, n)
+        if (n === '.revive') continue
+        if (statSync(p).isDirectory()) walk(p)
+        else out[relative(folder, p)] = readFileSync(p, 'utf8')
+      }
+    }
+    walk(folder)
+    return out
+  }
+  const before = snapshot()
+
+  const app = await launch(userData)
+  const win = await app.firstWindow()
+  await win.getByTestId('welcome-en').click()
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, folder)
+  await win.getByTestId('folder-pick').click()
+
+  await win.getByTestId('scan-start').click()
+  await expect(win.getByTestId('scan-badge')).toHaveText('Reading only')
+  await expect(win.getByTestId('scan-phase')).toHaveAttribute('data-phase', 'reading')
+  await expect(win.getByTestId('scan-found')).toContainText('habit-counter')
+
+  await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  await expect(win.getByTestId('project-card')).toHaveCount(2)
+  await expect(win.getByTestId('loose-files')).toContainText("1 file isn't part of any project.")
+
+  expect(snapshot()).toEqual(before)
+  expect(existsSync(join(folder, '.revive/manifest.json'))).toBe(true)
+  const versions = JSON.parse(readFileSync(join(folder, '.revive/versions.json'), 'utf8'))
+  expect(versions[0].kind).toBe('scan')
+  await app.close()
+
+  // Next launch: the gallery is there straight away.
+  const again = await launch(userData)
+  const win2 = await again.firstWindow()
+  await expect(win2.getByTestId('project-card')).toHaveCount(2)
+  await again.close()
+})

@@ -7,6 +7,8 @@ import { exec } from '../exec'
 import { checkPrereqs } from '../prereq'
 import { installClaude, signIn } from '../tasks'
 import { addRecent, checkFolder, describeRecent } from '../folders'
+import { readManifest } from '../manifest-store'
+import type { ScanController } from '../scanner/controller'
 
 type Handler<C extends RequestChannel> = (args: RequestArgs<C>) => RequestResult<C> | Promise<RequestResult<C>>
 
@@ -26,6 +28,7 @@ export function registerIpc(deps: {
   getWindow: () => BrowserWindow | null
   /** Resolves once the login-shell PATH is loaded. */
   shellReady: Promise<void>
+  scans: ScanController
 }): void {
   const { settings, getWindow } = deps
   const notifySettings = () => send(getWindow(), 'settings:changed', settings.get())
@@ -75,4 +78,28 @@ export function registerIpc(deps: {
     return check
   })
   handle('folder:recent', () => describeRecent(settings.get().recentFolders))
+
+  // The renderer never names a folder to scan: it is always the one the user chose.
+  const currentFolder = async (): Promise<string> => {
+    const folder = settings.get().lastFolder
+    if (!folder) throw new Error('No folder chosen')
+    const check = await checkFolder(folder)
+    if (!check.ok) throw new Error(`Folder unavailable: ${check.problem}`)
+    return check.path
+  }
+
+  handle('manifest:get', async () => {
+    const r = await readManifest(await currentFolder())
+    if (!r) return { state: 'none' as const }
+    return r.ok ? { state: 'ok' as const, manifest: r.manifest } : { state: 'invalid' as const, issues: r.issues }
+  })
+  handle('scan:start', async () => {
+    await deps.shellReady
+    return deps.scans.start(await currentFolder(), settings.get().scanModel)
+  })
+  handle('scan:cancel', (args) => deps.scans.cancel(z.object({ scanId: z.string() }).parse(args).scanId))
+  handle('scan:active', () => {
+    const a = deps.scans.active()
+    return a ? { scanId: a.scanId } : null
+  })
 }

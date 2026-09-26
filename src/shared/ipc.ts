@@ -1,6 +1,10 @@
 import type { Settings, SettingsPatch } from './settings'
 import type { HelpTopic, PrereqReport, TaskUpdate } from './prereq'
 import type { FolderCheck, RecentFolder } from './folder'
+import type { Manifest } from './manifest'
+import type { ScanDone, ScanProgress } from './scan'
+
+export type ManifestState = { state: 'none' } | { state: 'ok'; manifest: Manifest } | { state: 'invalid'; issues: string[] }
 
 /**
  * The single source of truth for renderer ↔ main communication.
@@ -21,7 +25,12 @@ export interface IpcRequests {
   /** Validates, then remembers the folder as current and recent. */
   'folder:choose': { args: { path: string }; result: FolderCheck }
   'folder:recent': { args: void; result: RecentFolder[] }
-  // M3: 'manifest:get', 'scan:start', 'scan:cancel'
+  /** The manifest of the current folder, validated. */
+  'manifest:get': { args: void; result: ManifestState }
+  /** Reads the current folder. Returns the running scan if one is already going. */
+  'scan:start': { args: void; result: { scanId: string } }
+  'scan:cancel': { args: { scanId: string }; result: void }
+  'scan:active': { args: void; result: { scanId: string } | null }
   // M4: 'runner:*', 'preview:*', 'shots:url'
   // M5: 'versions:*', 'trash:*'
   // Later phases (reserved): 'fix:*', 'keys:*', 'golive:*', 'chat:*', 'nightshift:*'
@@ -30,6 +39,8 @@ export interface IpcRequests {
 export interface IpcEvents {
   'settings:changed': Settings
   'prereq:task': TaskUpdate
+  'scan:progress': ScanProgress
+  'scan:done': ScanDone
 }
 
 export type RequestChannel = keyof IpcRequests
@@ -47,9 +58,13 @@ export const REQUEST_CHANNELS = [
   'folder:pick',
   'folder:check',
   'folder:choose',
-  'folder:recent'
+  'folder:recent',
+  'manifest:get',
+  'scan:start',
+  'scan:cancel',
+  'scan:active'
 ] as const satisfies readonly RequestChannel[]
-export const EVENT_CHANNELS = ['settings:changed', 'prereq:task'] as const satisfies readonly EventChannel[]
+export const EVENT_CHANNELS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done'] as const satisfies readonly EventChannel[]
 
 // Compile-time check that the runtime channel lists cover the whole contract.
 type Missing<All, Listed> = Exclude<All, Listed>

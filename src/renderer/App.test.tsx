@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import '@/i18n'
 import { SettingsProvider } from '@/state/settings'
+import { ProjectsProvider } from '@/state/projects'
 import { App } from '@/App'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { StatusPill } from '@/components/StatusPill'
@@ -13,7 +14,9 @@ import { installMockRevive } from '@/test/mockRevive'
 function renderApp() {
   return render(
     <SettingsProvider>
-      <App />
+      <ProjectsProvider>
+        <App />
+      </ProjectsProvider>
     </SettingsProvider>
   )
 }

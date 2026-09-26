@@ -18,7 +18,7 @@ export function StatusPill({ status }: { status: StatusKind }): ReactNode {
   return (
     <span
       data-status={status}
-      className={cx('inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[13px] font-medium', s.text)}
+      className={cx('inline-flex items-center gap-1.5 rounded-full whitespace-nowrap border border-border bg-card px-2.5 py-1 text-[13px] font-medium', s.text)}
     >
       <span className={cx('size-2 rounded-full', s.dot)} aria-hidden />
       {tx(s.key)}

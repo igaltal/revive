@@ -28,6 +28,14 @@ export function ChevronForward({ className, ...props }: IconProps) {
   )
 }
 
+export function ChevronBack({ className, ...props }: IconProps) {
+  return (
+    <svg {...base(props)} className={cx('rtl:-scale-x-100', className)} data-mirrors="true">
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  )
+}
+
 export function ArrowForward({ className, ...props }: IconProps) {
   return (
     <svg {...base(props)} className={cx('rtl:-scale-x-100', className)} data-mirrors="true">

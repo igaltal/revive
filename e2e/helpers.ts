@@ -14,8 +14,14 @@ export function sampleFolder(): string {
   return dir
 }
 
+import { resolve } from 'node:path'
+
+/** Launches the built app with throwaway settings and the offline stand-in for Claude. */
 export function launch(userData: string): Promise<ElectronApplication> {
-  return electron.launch({ args: ['.'], env: { ...process.env, REVIVE_USER_DATA: userData } })
+  return electron.launch({
+    args: ['.'],
+    env: { ...process.env, REVIVE_USER_DATA: userData, REVIVE_TEST_AGENT: resolve('fixtures/sample-folder.manifest.json') }
+  })
 }
 
 /** The native folder dialog can't be clicked by Playwright; answer it from the main process. */

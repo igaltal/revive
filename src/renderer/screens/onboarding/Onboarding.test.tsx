@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@/i18n'
 import { SettingsProvider } from '@/state/settings'
+import { ProjectsProvider } from '@/state/projects'
 import { App } from '@/App'
 import { installMockRevive, READY_REPORT } from '@/test/mockRevive'
 import { CLAUDE_INSTALL_COMMAND, type PrereqReport } from '@shared/prereq'
@@ -10,7 +11,9 @@ import { CLAUDE_INSTALL_COMMAND, type PrereqReport } from '@shared/prereq'
 function renderApp() {
   return render(
     <SettingsProvider>
-      <App />
+      <ProjectsProvider>
+        <App />
+      </ProjectsProvider>
     </SettingsProvider>
   )
 }

@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [ ] M3 · [ ] M4 · [ ] M5
+- [x] M1 · [x] M2 · [x] M3 · [ ] M4 · [ ] M5
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -185,4 +185,45 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 **Carry into M3:** the scan must also **deny reading `.env*` files** (a permission deny rule), so key values never reach Claude. That's in addition to the write restriction to `.revive/`.
 
 *Try it:* `REVIVE_USER_DATA=$(mktemp -d) npm run dev`. Pick a language, watch the check, try drag and drop with a folder (try your home folder to see the "too big" message), then relaunch without the env var to reach your real settings.
+
+### M3: done (2026-09-26)
+- **Scan flags, checked against the docs and a real run.** The docs changed two things in the plan:
+  - `Write(path)` rules are **never consulted**; `Edit(path)` governs Write. Revive allows exactly `Edit(.revive/manifest.json)`, so Claude can write that one file and nothing else, not even the shadow repo.
+  - Read deny rules apply to the **folder** Grep searches, not to each file, so a folder-wide Grep could surface `.env` lines. **Grep is left out.** Claude has Read, Glob, Write and Edit only, and still finds keys by reading source.
+  - Also: `--restricted` (no Bash or code tools, the folder's own `.claude` settings ignored), `dontAsk` + `--permission-prompts none`, `--strict-mcp-config`, `--no-session-persistence`, `--model <setting>`, `--max-turns 200` (documented, just hidden from `--help`), `--max-budget-usd 3`, and a hard 10-minute timeout.
+  - Deny list: `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, SSH keys, `.npmrc`, `.pypirc`, `.netrc`, credential/service-account JSON, `.git/`, `.revive/git/`.
+  - Probe run: reading `.env` → denied; writing outside `.revive/` → denied; writing inside → allowed; the planted secret never appeared in the output.
+- **Scan pipeline** (`src/main/scanner/scan.ts`):
+  1. Write `schema.json` (generated from zod), back up the manifest, **save a version**.
+  2. Fingerprint the folder.
+  3. Run Claude, streaming progress.
+  4. Fingerprint again. If anything outside `.revive/` changed: put changed/deleted files back from the version, **move** new files to `.revive/quarantine/<time>/`, list anything that couldn't be put back (e.g. ignored files), set the manifest aside, and show the error.
+  5. Validate. If invalid, keep the previous manifest and save the bad one as `manifest.rejected.json`.
+  6. Merge.
+- **Merge rules** (`mergeAfterScan`): `user_locked` fields keep the user's value. `status`/`verified_at` carry over only while the install and dev commands are unchanged, so a scan can never mark a project as working. `running` is never stored. `scanned_at` is the real time (Claude invented one in the real run). Every string is masked for secrets. Unknown fields (such as a key's value) are dropped by zod.
+- **Versions core arrived early** (needed for "save a version before every scan"):
+  - Shadow repo for folders without git.
+  - `refs/revive/versions/<id>` + `refs/revive/latest` inside each user repo, built with a private `GIT_INDEX_FILE` + `commit-tree` + `update-ref`.
+  - Nested repos get their own part.
+  - `.revive/.gitignore` keeps Revive out of the user's `git status`.
+  - Exclusions: `.env*`, `node_modules`, `build`, `dist`, `.venv`, `.revive`, files over 50 MB.
+  - `restoreFiles` uses a throwaway index plus `checkout-index`, and never touches files outside the version.
+  - `moveAside` handles quarantine and trash.
+  - A test proves the user's HEAD, branches, index file (hashed), stash and `git status` are byte-for-byte unchanged.
+  - simple-git runs with a minimal env and an explicit `allowEnvironment` list.
+  - M5 adds the History screen, full restore, undo and emptying the trash.
+- **Gallery.** 2 columns below 960 px, 3 from 960 px, 4 from 1280 px (window width). Each card shows a picture placeholder, name, description in the interface language, a status word + color, and one action (Open / Start / Check if it works; broken → Check if it works). Until M4 the action opens the project page.
+- **Screen states.** Also: "not read yet" with a "Read my folder" button, a loose-files sentence, one Technical details box (folder path, loose files), "Read the folder again", and the last-read date in the locale's format.
+- **Scan screen.** Full screen with the language switch, a "Reading only" badge, and the phase in plain words (saving a version → Claude is reading → checking nothing else changed). It shows files read and projects found (appearing as found), recent files in an LTR block, limits under Technical details, and a Stop button. It survives a language switch.
+- **Errors.** One plain sentence and one action each: version failed, Claude missing / signed out (→ check my computer / sign in), changed outside (details in LTR blocks), unreadable result, limit, timeout, stopped, unknown (masked log). Cost is shown as "Claude reported this reading as about $0.05 of usage" (Claude's own `total_cost_usd`).
+- **Project page (basic).** Name, status, picture placeholder, "What it is", "Keys and connections" by purpose (names only under Technical details), and Technical details with folder, stack, commands, port, key names and notes. M4 adds the live preview and Start/Stop.
+- **Offline test agent.** `REVIVE_TEST_AGENT=<manifest>` swaps Claude for a fake in **unpackaged** builds only, so e2e runs offline at no cost.
+- **Real run on the fixture** (Haiku): 45 s, $0.05. Nothing outside `.revive/` changed (hash-compared), the planted `.env` secret wasn't in the manifest, both projects and the loose file were found, and `VITE_WEATHER_KEY` was found from source.
+- **Tests.** 83 unit and component tests, plus 2 Electron smoke tests (onboarding, then a full scan with the offline agent, including "nothing outside `.revive` changed" and a relaunch).
+
+**Notes for you**
+- **Hebrew descriptions from Haiku are understandable but stiff.** It wrote "חנות אופה" where a native speaker would write "מאפייה". Switching the scan model to Sonnet in Settings will likely read more natively; I haven't changed your scan prompt.
+- **Progress shows "0 files read" for the first few seconds.** Claude reports each step when that step finishes, and its first step is usually a folder-wide listing.
+
+*Try it:* `npm run dev` (with your folder chosen), then "Read my folder". This runs a real scan on your account with the model from Settings. For an offline dry run: `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` and pick a copy of `fixtures/sample-folder`.
 
