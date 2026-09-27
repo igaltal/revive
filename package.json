@@ -13,9 +13,10 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --exclude \"**/*.live.test.ts\"",
     "test:e2e": "electron-vite build && playwright test",
-    "postinstall": "electron-rebuild -f -w node-pty"
+    "postinstall": "electron-rebuild -f -w node-pty",
+    "test:live": "vitest run src/main/scanner/turn-limit.live.test.ts"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",

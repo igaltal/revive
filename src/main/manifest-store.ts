@@ -99,3 +99,60 @@ export function mergeAfterScan(previous: Manifest | null, next: Manifest, now = 
   // Revive records when it read the folder; Claude's own timestamp is not trusted.
   return maskStrings({ ...next, scanned_at: now.toISOString(), projects })
 }
+
+// One write at a time per folder, so a runner update never interleaves with another.
+const queues = new Map<string, Promise<unknown>>()
+function serialized<T>(folder: string, task: () => Promise<T>): Promise<T> {
+  const next = (queues.get(folder) ?? Promise.resolve()).then(task, task)
+  queues.set(
+    folder,
+    next.catch(() => {})
+  )
+  return next
+}
+
+/**
+ * Changes one project in the stored manifest (read, validate, change, write).
+ * Returns false if there is no valid manifest or no such project.
+ */
+export function updateProject(folder: string, projectId: string, change: (p: Project) => void): Promise<boolean> {
+  return serialized(folder, async () => {
+    const r = await readManifest(folder)
+    if (!r?.ok) return false
+    const project = r.manifest.projects.find((p) => p.id === projectId)
+    if (!project) return false
+    change(project)
+    await writeManifest(folder, r.manifest)
+    return true
+  })
+}
+
+/** The inputs for the description step: only what indexing found, for projects whose description isn't locked. */
+export function describeInputs(manifest: Manifest): Array<{ id: string; name: string; stack: string[]; draft: string; notes: string[]; keyPurposes: string[] }> {
+  return manifest.projects
+    .filter((p) => !p.user_locked.includes('description') && !(p.user_locked.includes('description.en') && p.user_locked.includes('description.he')))
+    .map((p) => ({ id: p.id, name: p.name, stack: p.stack, draft: p.description.en, notes: p.notes.slice(0, 5), keyPurposes: p.keys.map((k) => k.purpose.en) }))
+}
+
+/**
+ * Puts the description step's sentences in place. Only description.en and
+ * description.he change, never a locked one, and never for an unknown id.
+ */
+export function applyDescriptions(manifest: Manifest, descriptions: Array<{ id: string; en: string; he: string }>): Manifest {
+  const byId = new Map(descriptions.map((d) => [d.id, d]))
+  return {
+    ...manifest,
+    projects: manifest.projects.map((p) => {
+      const d = byId.get(p.id)
+      if (!d || p.user_locked.includes('description')) return p
+      const keep = (lang: 'en' | 'he') => p.user_locked.includes(`description.${lang}`) || !d[lang].trim()
+      return {
+        ...p,
+        description: {
+          en: keep('en') ? p.description.en : redact(d.en.trim()),
+          he: keep('he') ? p.description.he : redact(d.he.trim())
+        }
+      }
+    })
+  }
+}

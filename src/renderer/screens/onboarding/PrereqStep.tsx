@@ -8,6 +8,7 @@ import { LogBlock } from '@/components/LogBlock'
 import { TechnicalDetails } from '@/components/TechnicalDetails'
 import { ArrowForward } from '@/components/icons'
 import { cx } from '@/components/cx'
+import { transport } from '@/transport'
 
 type RowState = 'ready' | 'missing' | 'notSignedIn' | 'optional' | 'recommended'
 type TaskState = { phase: TaskUpdate['phase'] | 'idle'; lines: string[] }
@@ -58,7 +59,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
   const check = useCallback(async () => {
     setChecking(true)
     try {
-      setReport(await window.revive.invoke('prereq:check'))
+      setReport(await transport.invoke('prereq:check'))
     } finally {
       setChecking(false)
     }
@@ -66,7 +67,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
 
   useEffect(() => {
     let alive = true
-    void window.revive.invoke('prereq:check').then((first) => {
+    void transport.invoke('prereq:check').then((first) => {
       if (!alive) return
       setReport(first)
       setChecking(false)
@@ -78,7 +79,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
 
   useEffect(
     () =>
-      window.revive.on('prereq:task', (u) => {
+      transport.on('prereq:task', (u) => {
         const set = u.task === 'install-claude' ? setInstall : setSignIn
         set((prev) => ({ phase: u.phase, lines: u.line ? [...prev.lines, u.line].slice(-400) : prev.lines }))
         // Re-check automatically once an install or sign-in ends.
@@ -87,7 +88,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
     [check]
   )
 
-  const help = (topic: 'claude-install' | 'git' | 'node') => void window.revive.invoke('shell:openHelp', { topic })
+  const help = (topic: 'claude-install' | 'git' | 'node') => void transport.invoke('shell:openHelp', { topic })
   const r = report
   const busy = checking && !r
 
@@ -101,11 +102,11 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
   const startInstall = () => {
     setConfirmInstall(false)
     setInstall({ phase: 'running', lines: [] })
-    void window.revive.invoke('prereq:installClaude')
+    void transport.invoke('prereq:installClaude')
   }
   const startSignIn = () => {
     setSignIn({ phase: 'running', lines: [] })
-    void window.revive.invoke('prereq:signIn')
+    void transport.invoke('prereq:signIn')
   }
 
   let panel: ReactNode = null

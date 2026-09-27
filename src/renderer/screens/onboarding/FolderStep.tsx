@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Notice } from '@/components/Notice'
 import { ChevronForward } from '@/components/icons'
 import { cx } from '@/components/cx'
+import { transport } from '@/transport'
 
 function FolderIcon() {
   return (
@@ -21,11 +22,11 @@ export function FolderStep({ onChosen, header }: { onChosen: (path: string) => v
   const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
-    void window.revive.invoke('folder:recent').then(setRecent)
+    void transport.invoke('folder:recent').then(setRecent)
   }, [])
 
   const choose = async (path: string) => {
-    const result: FolderCheck = await window.revive.invoke('folder:choose', { path })
+    const result: FolderCheck = await transport.invoke('folder:choose', { path })
     if (result.ok) {
       setProblem(null)
       onChosen(result.path)
@@ -35,7 +36,7 @@ export function FolderStep({ onChosen, header }: { onChosen: (path: string) => v
   }
 
   const pick = async () => {
-    const picked = await window.revive.invoke('folder:pick')
+    const picked = await transport.invoke('folder:pick')
     if (!picked) return
     if (picked.ok) await choose(picked.path)
     else setProblem(picked.problem)
@@ -46,7 +47,7 @@ export function FolderStep({ onChosen, header }: { onChosen: (path: string) => v
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
-    void choose(window.revive.pathForFile(file))
+    void choose(transport.pathForFile(file))
   }
 
   return (

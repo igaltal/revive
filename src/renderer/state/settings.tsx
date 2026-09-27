@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_SETTINGS, type Settings, type SettingsPatch } from '@shared/settings'
 import { applyLanguage } from '@/i18n'
+import { transport } from '@/transport'
 
 interface SettingsContextValue {
   settings: Settings
@@ -16,12 +17,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true
-    void window.revive.invoke('settings:get').then((s) => {
+    void transport.invoke('settings:get').then((s) => {
       if (!alive) return
       setSettings(s)
       setLoaded(true)
     })
-    const off = window.revive.on('settings:changed', setSettings)
+    const off = transport.on('settings:changed', setSettings)
     return () => {
       alive = false
       off()
@@ -36,7 +37,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const update = useCallback((patch: SettingsPatch) => {
     // Optimistic: the screen changes instantly, the file is written after.
     setSettings((prev) => ({ ...prev, ...patch }))
-    void window.revive.invoke('settings:set', patch)
+    void transport.invoke('settings:set', patch)
   }, [])
 
   const value = useMemo(() => ({ settings, loaded, update }), [settings, loaded, update])

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { ManifestState } from '@shared/ipc'
 import type { ScanDone, ScanProgress } from '@shared/scan'
 import { useSettings } from './settings'
+import { transport } from '@/transport'
 
 interface ProjectsContextValue {
   manifest: ManifestState | null
@@ -27,7 +28,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!folder) return
     let alive = true
-    void window.revive
+    void transport
       .invoke('manifest:get')
       .then((m) => alive && setManifest(m))
       .catch(() => alive && setManifest({ state: 'none' }))
@@ -38,11 +39,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true
-    void window.revive.invoke('scan:active').then((a) => {
+    void transport.invoke('scan:active').then((a) => {
       if (alive && a) setScan((s) => s ?? { scanId: a.scanId, progress: null })
     })
-    const offProgress = window.revive.on('scan:progress', (p) => setScan({ scanId: p.scanId, progress: p }))
-    const offDone = window.revive.on('scan:done', (d) => {
+    const offProgress = transport.on('scan:progress', (p) => setScan({ scanId: p.scanId, progress: p }))
+    const offDone = transport.on('scan:done', (d) => {
       setScan(null)
       setLastResult(d)
       setReloadTick((n) => n + 1)
@@ -56,10 +57,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const startScan = useCallback(() => {
     setLastResult(null)
-    void window.revive.invoke('scan:start').then(({ scanId }) => setScan((s) => s ?? { scanId, progress: null }))
+    void transport.invoke('scan:start').then(({ scanId }) => setScan((s) => s ?? { scanId, progress: null }))
   }, [])
   const cancelScan = useCallback(() => {
-    if (scan) void window.revive.invoke('scan:cancel', { scanId: scan.scanId })
+    if (scan) void transport.invoke('scan:cancel', { scanId: scan.scanId })
   }, [scan])
   const dismissResult = useCallback(() => setLastResult(null), [])
   const reload = useCallback(() => setReloadTick((n) => n + 1), [])

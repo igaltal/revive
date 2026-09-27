@@ -3,6 +3,16 @@ import type { HelpTopic, PrereqReport, TaskUpdate } from './prereq'
 import type { FolderCheck, RecentFolder } from './folder'
 import type { Manifest } from './manifest'
 import type { ScanDone, ScanProgress } from './scan'
+import type { RunState, RuntimeEvent } from './runtime'
+import type { GuardState } from './guard'
+
+export interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+export type PreviewDevice = 'desktop' | 'phone'
 
 export type ManifestState = { state: 'none' } | { state: 'ok'; manifest: Manifest } | { state: 'invalid'; issues: string[] }
 
@@ -31,7 +41,27 @@ export interface IpcRequests {
   'scan:start': { args: void; result: { scanId: string } }
   'scan:cancel': { args: { scanId: string }; result: void }
   'scan:active': { args: void; result: { scanId: string } | null }
-  // M4: 'runner:*', 'preview:*', 'shots:url'
+  /** Whether the installed Claude Code honours the turn limit. */
+  'guard:status': { args: void; result: GuardState }
+  'guard:recheck': { args: void; result: GuardState }
+
+  // Runner: thin adapters over main/services/runner. Progress arrives on 'runtime:event'.
+  'runner:start': { args: { projectId: string }; result: RunState }
+  'runner:stop': { args: { projectId: string }; result: RunState }
+  'runner:list': { args: void; result: RunState[] }
+  /** The project's recent output, masked, colour codes removed. */
+  'runner:logs': { args: { projectId: string }; result: string[] }
+  /** Events after `seq`, for a client that (re)connects late. */
+  'runtime:since': { args: { seq: number }; result: RuntimeEvent[] }
+
+  // Preview of a running project, laid over the renderer at `bounds` (window coordinates).
+  'preview:show': { args: { projectId: string; bounds: Bounds; device: PreviewDevice }; result: void }
+  'preview:hide': { args: void; result: void }
+  'preview:reload': { args: void; result: void }
+  'preview:openInBrowser': { args: { projectId: string }; result: void }
+
+  /** Picture paths (see shared/assets) by project id, for the current folder. */
+  'shots:list': { args: void; result: Record<string, string> }
   // M5: 'versions:*', 'trash:*'
   // Later phases (reserved): 'fix:*', 'keys:*', 'golive:*', 'chat:*', 'nightshift:*'
 }
@@ -41,6 +71,9 @@ export interface IpcEvents {
   'prereq:task': TaskUpdate
   'scan:progress': ScanProgress
   'scan:done': ScanDone
+  'guard:changed': GuardState
+  /** The one stream for runner and terminal activity. */
+  'runtime:event': RuntimeEvent
 }
 
 export type RequestChannel = keyof IpcRequests
@@ -62,9 +95,21 @@ export const REQUEST_CHANNELS = [
   'manifest:get',
   'scan:start',
   'scan:cancel',
-  'scan:active'
+  'scan:active',
+  'guard:status',
+  'guard:recheck',
+  'runner:start',
+  'runner:stop',
+  'runner:list',
+  'runner:logs',
+  'runtime:since',
+  'preview:show',
+  'preview:hide',
+  'preview:reload',
+  'preview:openInBrowser',
+  'shots:list'
 ] as const satisfies readonly RequestChannel[]
-export const EVENT_CHANNELS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done'] as const satisfies readonly EventChannel[]
+export const EVENT_CHANNELS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done', 'guard:changed', 'runtime:event'] as const satisfies readonly EventChannel[]
 
 // Compile-time check that the runtime channel lists cover the whole contract.
 type Missing<All, Listed> = Exclude<All, Listed>

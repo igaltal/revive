@@ -9,7 +9,9 @@ export class ScanController {
 
   constructor(
     private readonly adapter: AgentAdapter,
-    private readonly events: { progress: (p: ScanProgress) => void; done: (d: ScanDone) => void }
+    private readonly events: { progress: (p: ScanProgress) => void; done: (d: ScanDone) => void },
+    /** Runs first: stops anything Revive started, so a running dev server can't look like the scan changed files. */
+    private readonly beforeScan: () => Promise<void> = async () => {}
   ) {}
 
   start(folder: string, model: string): { scanId: string } {
@@ -17,8 +19,9 @@ export class ScanController {
     const scanId = randomUUID()
     const abort = new AbortController()
     this.current = { scanId, folder, abort }
-    void runScan(folder, { adapter: this.adapter, model, scanId, signal: abort.signal, onProgress: this.events.progress })
-      .catch((e: unknown): ScanDone => ({ scanId, ok: false, costUsd: null, error: { code: 'unknown', detail: [String((e as Error)?.message ?? e)] } }))
+    void this.beforeScan()
+      .then(() => runScan(folder, { adapter: this.adapter, model, scanId, signal: abort.signal, onProgress: this.events.progress }))
+      .catch((e: unknown): ScanDone => ({ scanId, ok: false, costUsd: null, costParts: [], error: { code: 'unknown', detail: [String((e as Error)?.message ?? e)] } }))
       .then((done) => {
         this.current = null
         this.events.done(done)

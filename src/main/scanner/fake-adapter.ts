@@ -18,6 +18,10 @@ export function fakeAdapter(manifestFile: string): AgentAdapter {
       }
       await copyFile(manifestFile, join(folder, '.revive', 'manifest.json'))
       return { ok: true, costUsd: 0.01 }
+    },
+    // Keeps the fixture's own sentences; only the cost shows the step ran.
+    async describe() {
+      return { ok: true, costUsd: 0.02, descriptions: [] }
     }
   }
 }

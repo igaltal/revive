@@ -6,9 +6,15 @@ import type { SettingsStore } from '../settings-store'
 import { exec } from '../exec'
 import { checkPrereqs } from '../prereq'
 import { installClaude, signIn } from '../tasks'
-import { addRecent, checkFolder, describeRecent } from '../folders'
+import { checkFolder, describeRecent } from '../folders'
 import { readManifest } from '../manifest-store'
 import type { ScanController } from '../scanner/controller'
+import type { GuardState } from '@shared/guard'
+import type { Workspace } from '../services/workspace'
+import type { Runner } from '../services/runner/runner'
+import type { RuntimeBus } from '../services/runtime-bus'
+import type { PreviewManager } from '../services/preview/preview-manager'
+import { listShots } from '../services/shots/shots'
 
 type Handler<C extends RequestChannel> = (args: RequestArgs<C>) => RequestResult<C> | Promise<RequestResult<C>>
 
@@ -21,6 +27,12 @@ export function send<E extends EventChannel>(win: BrowserWindow | null, event: E
 }
 
 const PathArg = z.object({ path: z.string().min(1).max(4096) })
+const ProjectArg = z.object({ projectId: z.string().min(1).max(80) })
+const Px = z.number().finite().min(-10_000).max(100_000)
+const PreviewArg = ProjectArg.extend({
+  bounds: z.object({ x: Px, y: Px, width: Px.min(0), height: Px.min(0) }),
+  device: z.enum(['desktop', 'phone'])
+})
 const HelpArg = z.object({ topic: z.enum(Object.keys(HELP_PAGES) as [HelpTopic, ...HelpTopic[]]) })
 
 export function registerIpc(deps: {
@@ -29,8 +41,13 @@ export function registerIpc(deps: {
   /** Resolves once the login-shell PATH is loaded. */
   shellReady: Promise<void>
   scans: ScanController
+  workspace: Workspace
+  runner: Runner
+  bus: RuntimeBus
+  preview: PreviewManager
+  guard: { current: () => GuardState; recheck: () => Promise<GuardState> }
 }): void {
-  const { settings, getWindow } = deps
+  const { settings, getWindow, workspace, runner, preview } = deps
   const notifySettings = () => send(getWindow(), 'settings:changed', settings.get())
 
   handle('settings:get', () => settings.get())
@@ -70,23 +87,14 @@ export function registerIpc(deps: {
   })
   handle('folder:check', (args) => checkFolder(PathArg.parse(args).path))
   handle('folder:choose', async (args) => {
-    const check = await checkFolder(PathArg.parse(args).path)
-    if (check.ok) {
-      settings.update({ lastFolder: check.path, recentFolders: addRecent(settings.get().recentFolders, check.path) })
-      notifySettings()
-    }
+    const check = await workspace.choose(PathArg.parse(args).path)
+    if (check.ok) notifySettings()
     return check
   })
   handle('folder:recent', () => describeRecent(settings.get().recentFolders))
 
   // The renderer never names a folder to scan: it is always the one the user chose.
-  const currentFolder = async (): Promise<string> => {
-    const folder = settings.get().lastFolder
-    if (!folder) throw new Error('No folder chosen')
-    const check = await checkFolder(folder)
-    if (!check.ok) throw new Error(`Folder unavailable: ${check.problem}`)
-    return check.path
-  }
+  const currentFolder = () => workspace.current()
 
   handle('manifest:get', async () => {
     const r = await readManifest(await currentFolder())
@@ -101,5 +109,29 @@ export function registerIpc(deps: {
   handle('scan:active', () => {
     const a = deps.scans.active()
     return a ? { scanId: a.scanId } : null
+  })
+
+  handle('guard:status', () => deps.guard.current())
+  handle('guard:recheck', () => deps.guard.recheck())
+
+  // Runner: every handler is one call into the service.
+  handle('runner:start', (args) => runner.start(ProjectArg.parse(args).projectId))
+  handle('runner:stop', (args) => runner.stop(ProjectArg.parse(args).projectId))
+  handle('runner:list', () => runner.list())
+  handle('runner:logs', (args) => runner.logs(ProjectArg.parse(args).projectId))
+  handle('runtime:since', (args) => deps.bus.since(z.object({ seq: z.number().int().min(0) }).parse(args).seq))
+  deps.bus.subscribe((event) => send(getWindow(), 'runtime:event', event))
+
+  handle('preview:show', (args) => {
+    const { projectId, bounds, device } = PreviewArg.parse(args)
+    preview.show(projectId, bounds, device)
+  })
+  handle('preview:hide', () => preview.hide())
+  handle('preview:reload', () => preview.reload())
+  handle('preview:openInBrowser', (args) => preview.openInBrowser(ProjectArg.parse(args).projectId))
+
+  handle('shots:list', async () => {
+    const ctx = await workspace.projectIds()
+    return ctx ? listShots(ctx.folder, [...ctx.projectIds]) : {}
   })
 }

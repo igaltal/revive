@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useSettings } from '@/state/settings'
 import { useProjects } from '@/state/projects'
 import { useT } from '@/i18n/useT'
@@ -10,6 +10,8 @@ import { ProjectsScreen } from '@/screens/ProjectsScreen'
 import { ProjectScreen } from '@/screens/ProjectScreen'
 import { ScanView } from '@/screens/ScanView'
 import { WelcomeLanguage } from '@/screens/WelcomeLanguage'
+import { GuardBlocked } from '@/screens/GuardBlocked'
+import { useGuard } from '@/state/guard'
 import { Onboarding } from '@/screens/onboarding/Onboarding'
 import { FolderStep } from '@/screens/onboarding/FolderStep'
 import { PrereqStep } from '@/screens/onboarding/PrereqStep'
@@ -20,10 +22,18 @@ export function App(): ReactNode {
   const { settings, loaded } = useSettings()
   const { scan, reload } = useProjects()
   const { tx } = useT()
+  const { guard, recheck } = useGuard()
   const [route, setRoute] = useState<AppRoute>({ name: 'projects' })
+  const scrollRoot = useRef<HTMLElement>(null)
+  // Every screen opens at its top (the project page leads with its preview).
+  useLayoutEffect(() => {
+    scrollRoot.current?.scrollTo?.({ top: 0 })
+  }, [route])
 
   if (!loaded) return null
   if (settings.uiLanguage === null) return <WelcomeLanguage />
+  // Loud and first: a Claude Code that ignores the turn limit may not read anything.
+  if (guard?.state === 'failed') return <GuardBlocked guard={guard} onRecheck={recheck} />
   if (settings.lastFolder === null) return <Onboarding />
   // Reading the folder is a full screen view; it keeps its state across language switches.
   if (scan) return <ScanView />
@@ -34,7 +44,7 @@ export function App(): ReactNode {
   return (
     <div className="flex h-full">
       <Sidebar route={sidebarRoute} onNavigate={(name) => setRoute({ name })} />
-      <main className="min-w-0 flex-1 overflow-y-auto px-12 py-10">
+      <main ref={scrollRoot} data-scroll-root className="min-w-0 flex-1 overflow-y-auto px-12 py-10">
         {route.name === 'projects' && (
           <ProjectsScreen
             onChangeFolder={() => setRoute({ name: 'folder' })}

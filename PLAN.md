@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [ ] M4 · [ ] M5
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [ ] M5
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -227,3 +227,95 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 
 *Try it:* `npm run dev` (with your folder chosen), then "Read my folder". This runs a real scan on your account with the model from Settings. For an offline dry run: `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` and pick a copy of `fixtures/sample-folder`.
 
+
+### M4: done (2026-09-28)
+
+**Follow-ups from M3**
+- **Scan split.** Indexing still uses the model from Settings (Haiku by default). Then one short call to **Sonnet** writes only `description.en` and `description.he`:
+  - `--tools ""`, so it has no tools at all. It sees only what indexing found (name, stack, the draft sentence, notes, key purposes), never the files.
+  - `--json-schema` for a checked shape, and zod validates it again.
+  - Revive writes the two fields itself. Locked descriptions are skipped, and an empty sentence never replaces an existing one.
+  - If the call fails, the indexing sentences stay.
+  - The scan shows the **total** cost. Technical details list each step with its model and cost.
+  - Real run on the fixture: 52 s. Index $0.051 + descriptions $0.0075 = **$0.059**. The Hebrew now reads natively ("אתר אינטרנט למאפייה שכונתית…"). The planted `.env` secret didn't appear.
+- **First moments of a scan.** Until the first file arrives, the counter says "Reading your folder…" with a moving bar instead of "0 files read".
+- **Turn limit, proven.**
+  - The check: three files, each naming the next with a random name, so reading ahead in parallel is impossible. The run uses `--max-turns 1`. An honest CLI stops after the first read with `error_max_turns`.
+  - **Claude Code 2.1.283 passes:** only `start.txt` was read, `error_max_turns`, about $0.01.
+  - `npm run test:live` runs the check against the installed CLI (kept out of `npm test`, since it spends money).
+  - **At startup** Revive runs the same check once per Claude Code version and caches the verdict in userData. It's skipped while signed out.
+  - If the limit isn't enforced (or the flag is unknown), a **full-screen block** says so, with "How to update" and "Check again". Every scan is refused with its own error, and main logs to stderr.
+  - A scan whose check couldn't finish (offline) is refused rather than trusted.
+
+**Architecture for a future remote client**
+- **`main/services/`** holds the logic as plain TypeScript. No Electron imports in `runner/`, `sessions/session-hub.ts`, `runtime-bus.ts` or `workspace.ts`.
+  - `ipc/register.ts` handlers are one line each: validate with zod, call a service.
+  - `Workspace` owns "the current folder" and resolves project ids to folders (symlinks can't lead outside).
+- **One event stream** (`shared/runtime.ts`): `process.started`, `process.output`, `port.detected`, `status.changed`, `process.exited`, plus `shot.captured` and `manifest.changed`.
+  - Every event has a sequence number. `runtime:since {seq}` replays what a late client missed (last 2000 events).
+  - IPC carries it on one channel, `runtime:event`, and the renderer subscribes once (`state/runtime.tsx`).
+  - Scan events are unchanged.
+- **Sessions** have a stable identity: `{projectId, agent: 'shell' | 'claude' | 'codex'}`.
+  - They're created through `SessionBackend`. M4 ships `ptyBackend` (node-pty), which kills the whole process group.
+  - `SessionHub` masks output a line at a time, so a secret split across chunks is still caught. It also masks the displayed command (see below), strips spinner frames from the log, and keeps the last 400 lines.
+  - No pid ever reaches a client.
+  - The runner's install and dev commands run in the project's `shell` session. Claude and Codex terminals get their own sessions later.
+  - A second backend (`child-backend.ts`, plain child processes) runs the runner tests, because node-pty is built for Electron's ABI. It also shows the interface really is swappable. No tmux yet.
+- **Renderer transport.** `src/renderer/transport/` is the only module that touches `window.revive`; everything else imports `transport`.
+  - A new lint rule, `boundary/renderer-boundary`, fails on any Electron import in `renderer/`, and on `ipcRenderer` or `window.revive` outside the transport module.
+  - `tests/renderer-boundary.test.ts` proves the rule fires and that the whole renderer is clean.
+- **Pictures via protocol.** They're saved to `.revive/shots/<id>.png` and handed out as origin-relative paths (`/shots/<id>.png?v=<mtime>`).
+  - The desktop transport resolves them to `revive://local/…`, served by `protocol.handle`. Only ids in the current manifest resolve, and only inside `.revive/shots/`.
+  - The same request resolver (`resolveAssetRequest`) can back an HTTP route later.
+  - CSP: `img-src 'self' data: revive:`.
+- **The manifest always gets the facts.** After a successful start: `status: verified`, `verified_at`, `run.url`, `run.port`. After a failed one: `status: broken`. "Running" is still never stored.
+  - These writes are serialized per folder.
+  - Run facts are written even when those fields are in `user_locked`, since locks only bind scans.
+
+**Runner**
+- **Start:**
+  1. Install if the parts are missing (`node_modules`, or `.venv`/`venv` for Python). A failure that points at missing parts forces an install next time.
+  2. Run the dev command in the user's shell, with `BROWSER=none` and Electron/Revive env vars removed.
+  3. **Plain HTML projects with no start command** are served by Revive's own tiny file server. It's a separate build entry, run as its own process by Electron in Node mode, on 127.0.0.1 only, and it never serves dotfiles (`.env`), parent folders or symlinks out.
+- **Port:**
+  - First from the output, colour codes stripped. Tested on real output from Vite, Next, CRA, Flask, http-server, Django, Express, Astro and Uvicorn. "Network" addresses on other machines are ignored.
+  - After 12 s with no port printed, Revive looks for the manifest's port or a common dev port that wasn't open before the start.
+- **Health check:** GET the page (localhost only) until the status is below 500. Starting has 90 s in total.
+- **Statuses:** installing → starting → checking → running; stopping → stopped; broken. Also "stopped on its own" when a running server exits.
+- **One-sentence causes** (rule-based `ErrorExplainer`): missing key (by its plain purpose, never its name), port busy, parts not downloaded, a tool not installed (npm, python…), install failed, no start command, didn't open in time, unknown.
+- **Stops everything** before a scan, when the folder changes, and on quit. Quit waits up to 5 s for every process group, then leaves.
+
+**Preview and pictures**
+- **Preview:** a `WebContentsView` in its own session partition (sandboxed, no node, all permissions denied).
+  - Navigation is limited to localhost. Other links open in the browser; the app itself can still load anything it needs.
+  - The renderer reports the frame's on-screen box, clipped to the scrolling area. Main lays the view over it.
+  - Computer or Phone (390 px, centered), Reload, Open in browser (localhost only).
+  - It closes by itself when the project stops.
+- **Pictures:** captured offscreen at 1280×800 after every successful start, whether or not the preview is open. Cards and the project page show them. I checked a real capture of the bakery page.
+
+**UI**
+- **Card:** the one button starts the project and opens its page ("Start" / "Check if it works"), or just opens it while it's running or busy. The status pill shows progress words: "Getting things ready", "Starting", "Checking that it opens" (Hebrew: מכינים את מה שצריך, מפעילים, בודקים שזה נפתח).
+- **Project page:** Start/Stop, the progress sentence, the live preview, the one-sentence cause with "Check if it works", the description, keys. Technical details add the address and the masked log.
+- **Found while checking:** screens kept the previous scroll position, so the project page opened with its preview half off-screen. Every screen now opens at the top.
+
+**Tests.** 142 unit and component tests (was 83), plus 3 Electron smoke tests, plus the live turn-limit test.
+- New unit tests: port detection on real outputs, the cause rules, the static server's path lock, picture path locking, hub masking across chunks, bus replay, serialized manifest writes, description merge and locks, the description call's flags and parsing, the probe's verdicts and the guard's cache.
+- Runner tests use real processes: start → port → health → recorded → picture; install only when needed; `.env` values masked in output **and in the command line**; port busy; no start command; plain page; port found by probing; timeout; stopped on its own; stop all.
+- New e2e test on the built app:
+  - "Check if it works" on the plain-HTML project → running.
+  - The native view shows `http://127.0.0.1:<port>/` with the page's title; Phone gives 390 px.
+  - The manifest has `verified` with URL and port, and the picture file exists.
+  - Stop removes the view and closes the port.
+  - The card picture loads through `revive://`.
+  - Start again, quit, and the port is closed.
+  - Any renderer error fails the test.
+- **Also checked by hand:** the Vite fixture with a real `npm install` (64 packages) and real Vite 7 output → running on 5199, shown in the preview, recorded in the manifest.
+
+**Notes for you**
+- **The Host PRD isn't on this machine** (searched `Documents`, `Downloads`, Spotlight). I built to the concrete requirements in your message. If the Host PRD names an event, field or session kind differently, those names live in `src/shared/runtime.ts` and `src/shared/assets.ts`.
+- **A real finding in testing:** a command like `API_TOKEN=… npm run dev` would have shown the key in the status, the start event and the log's `$` line; only output was masked before. The command is now masked with the `.env` values too.
+- **Startup check cost.** The first launch after each Claude Code update spends about $0.01 on the turn-limit check. Signed out, it spends nothing.
+- **The preview is a native view,** so nothing in the page can draw over it. Today nothing needs to. If a later milestone adds a menu or dialog over the preview, the view has to be hidden while it's open.
+- **Not verified live:** "Open in browser" (it would open your browser during tests; the URL check is unit-level), and how the preview looks while the page scrolls under it (the clipping math is simple, but I didn't watch it).
+
+*Try it:* `npm run dev`, open a project, press Start / Check if it works. Offline dry run: `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` with a copy of `fixtures/sample-folder`; "Sunrise Bakery" starts with no network, "Habit counter" runs `npm install` first. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`, and `npm run test:live` (about $0.01).

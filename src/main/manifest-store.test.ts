@@ -87,3 +87,45 @@ describe('merging a new scan', () => {
     expect(JSON.stringify(mergeAfterScan(null, next))).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz')
   })
 })
+
+describe('run facts and descriptions', () => {
+  it('records run facts one write at a time, keeping every change', async () => {
+    const { mkdtempSync, mkdirSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { sampleManifest } = await import('@shared/test-fixtures')
+    const { readManifest, updateProject, writeManifest } = await import('./manifest-store')
+    const folder = mkdtempSync(join(tmpdir(), 'revive-upd-'))
+    mkdirSync(join(folder, '.revive'))
+    await writeManifest(folder, sampleManifest())
+    await Promise.all([
+      updateProject(folder, 'bakery-site', (p) => (p.run.port = 5173)),
+      updateProject(folder, 'bakery-site', (p) => (p.run.url = 'http://localhost:5173/')),
+      updateProject(folder, 'bakery-site', (p) => (p.status = 'verified'))
+    ])
+    const r = await readManifest(folder)
+    expect(r?.ok && r.manifest.projects[0]!.run).toMatchObject({ port: 5173, url: 'http://localhost:5173/' })
+    expect(r?.ok && r.manifest.projects[0]!.status).toBe('verified')
+    expect(await updateProject(folder, 'nope', () => {})).toBe(false)
+  })
+
+  it('applies descriptions only where not locked, and never blanks one', async () => {
+    const { sampleManifest } = await import('@shared/test-fixtures')
+    const { applyDescriptions, describeInputs } = await import('./manifest-store')
+    const m = sampleManifest()
+    m.projects.push({ ...structuredClone(m.projects[0]!), id: 'locked-he', path: 'b', user_locked: ['description.he'] })
+    m.projects.push({ ...structuredClone(m.projects[0]!), id: 'locked', path: 'c', user_locked: ['description'] })
+    expect(describeInputs(m).map((p) => p.id)).toEqual(['bakery-site', 'locked-he'])
+    const out = applyDescriptions(m, [
+      { id: 'bakery-site', en: 'New en', he: '' },
+      { id: 'locked-he', en: 'New en 2', he: 'חדש' },
+      { id: 'locked', en: 'x', he: 'y' },
+      { id: 'ghost', en: 'x', he: 'y' }
+    ])
+    expect(out.projects.map((p) => p.description)).toEqual([
+      { en: 'New en', he: 'אתר למאפייה שכונתית.' },
+      { en: 'New en 2', he: 'אתר למאפייה שכונתית.' },
+      { en: 'A website for a neighborhood bakery.', he: 'אתר למאפייה שכונתית.' }
+    ])
+  })
+})

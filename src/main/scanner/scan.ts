@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs'
 import { rename } from 'node:fs/promises'
 import { basename, dirname, join, posix } from 'node:path'
 import type { Manifest } from '@shared/manifest'
-import { PROJECT_MARKERS, type ScanDone, type ScanProgress } from '@shared/scan'
+import { DESCRIBE_MODEL, PROJECT_MARKERS, totalCost, type ScanCostPart, type ScanDone, type ScanProgress } from '@shared/scan'
 import { redact } from '@shared/redact'
-import { backupManifest, manifestPath, mergeAfterScan, readManifest, restoreManifestBackup, writeManifest, writeSchema } from '../manifest-store'
+import { applyDescriptions, backupManifest, describeInputs, manifestPath, mergeAfterScan, readManifest, restoreManifestBackup, writeManifest, writeSchema } from '../manifest-store'
 import { ensureReviveDir, moveAside, restoreFiles, saveVersion } from '../versions/snapshot'
 import { diffFingerprints, fingerprint, isClean } from './fs-fingerprint'
 import type { AgentAdapter } from './agent-adapter'
@@ -37,7 +37,7 @@ export async function runScan(
     await backupManifest(folder)
     version = await saveVersion(folder, SCAN_VERSION_TITLE, 'scan')
   } catch (e) {
-    return { scanId, ok: false, costUsd: null, error: { code: 'version_failed', detail: [redact(String((e as Error).message ?? e))] } }
+    return { scanId, ok: false, costUsd: null, costParts: [], error: { code: 'version_failed', detail: [redact(String((e as Error).message ?? e))] } }
   }
   const before = await fingerprint(folder)
 
@@ -59,6 +59,9 @@ export async function runScan(
     }
   })
 
+  const costParts: ScanCostPart[] = [{ step: 'index', model: deps.model, usd: result.costUsd }]
+  const cost = () => ({ costUsd: totalCost(costParts), costParts: [...costParts] })
+
   // 3. Check that nothing outside .revive/ changed, whatever happened above.
   progress.phase = 'checking'
   emit()
@@ -70,27 +73,42 @@ export async function runScan(
     return {
       scanId,
       ok: false,
-      costUsd: result.costUsd,
+      ...cost(),
       error: { code: 'modified_outside', restored, quarantined, unrestorable: notInVersion }
     }
   }
 
   if (!result.ok) {
     await restoreManifestBackup(folder)
-    return { scanId, ok: false, costUsd: result.costUsd, error: { code: result.code, detail: result.detail } }
+    return { scanId, ok: false, ...cost(), error: { code: result.code, detail: result.detail } }
   }
 
   // 4. Validate what Claude wrote; keep the last good list if it's unusable.
   const next = await readManifest(folder)
   if (!next || !next.ok) {
     await setAsideRejected(folder)
-    return { scanId, ok: false, costUsd: result.costUsd, error: { code: 'invalid_manifest', detail: next ? next.issues.slice(0, 20) : ['No manifest was written.'] } }
+    return { scanId, ok: false, ...cost(), error: { code: 'invalid_manifest', detail: next ? next.issues.slice(0, 20) : ['No manifest was written.'] } }
   }
 
   // 5. Claude describes, Revive decides (locked fields, status).
-  const merged = mergeAfterScan(previous, next.manifest)
+  let merged = mergeAfterScan(previous, next.manifest)
   await writeManifest(folder, merged)
+
+  // 6. One short call to a stronger model writes the plain descriptions, and nothing else.
+  //    If it fails or is stopped, the indexing model's descriptions stay.
+  const inputs = describeInputs(merged)
+  if (inputs.length > 0 && !deps.signal.aborted) {
+    progress.phase = 'describing'
+    emit()
+    const described = await deps.adapter.describe(inputs, { model: DESCRIBE_MODEL, signal: deps.signal })
+    costParts.push({ step: 'describe', model: DESCRIBE_MODEL, usd: described.costUsd })
+    if (described.ok) {
+      merged = applyDescriptions(merged, described.descriptions)
+      await writeManifest(folder, merged)
+    }
+  }
+
   progress.phase = 'done'
   emit()
-  return { scanId, ok: true, manifest: merged, costUsd: result.costUsd, versionId: version.id }
+  return { scanId, ok: true, manifest: merged, ...cost(), versionId: version.id }
 }

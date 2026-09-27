@@ -60,3 +60,27 @@ describe('reading the stream', () => {
     expect(JSON.stringify(unknown)).not.toContain('abc123456')
   })
 })
+
+describe('the description call', () => {
+  it('has no tools at all and asks for a checked JSON shape', async () => {
+    const { buildDescribeArgs } = await import('./claude-adapter')
+    const args = buildDescribeArgs([{ id: 'a', name: 'A', stack: [], draft: 'x', notes: [], keyPurposes: [] }], 'sonnet')
+    const after = (flag: string) => args[args.indexOf(flag) + 1]
+    expect(after('--tools')).toBe('')
+    expect(args).not.toContain('--allowedTools')
+    expect(args).toContain('--restricted')
+    expect(after('--model')).toBe('sonnet')
+    expect(after('--output-format')).toBe('json')
+    expect(JSON.parse(after('--json-schema')!).properties.projects.type).toBe('array')
+    expect(args[1]).toContain('"draft": "x"')
+  })
+
+  it('reads the structured answer and its cost, and rejects anything else', async () => {
+    const { parseDescribeOutput } = await import('./claude-adapter')
+    const ok = { type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.025, result: '', structured_output: { projects: [{ id: 'a', en: 'A bakery site.', he: 'אתר למאפייה.' }] } }
+    expect(parseDescribeOutput(JSON.stringify(ok), '')).toEqual({ ok: true, costUsd: 0.025, descriptions: [{ id: 'a', en: 'A bakery site.', he: 'אתר למאפייה.' }] })
+    const bad = { ...ok, structured_output: { projects: [{ id: 'a' }] } }
+    expect(parseDescribeOutput(JSON.stringify(bad), '')).toMatchObject({ ok: false, costUsd: 0.025 })
+    expect(parseDescribeOutput('', 'Invalid API key · Please run /login')).toMatchObject({ ok: false, code: 'auth' })
+  })
+})

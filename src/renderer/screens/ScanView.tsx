@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SCAN_LIMITS } from '@shared/scan'
+import { DESCRIBE_LIMITS, DESCRIBE_MODEL, SCAN_LIMITS } from '@shared/scan'
 import { useT } from '@/i18n/useT'
 import { LtrBlock } from '@/i18n/bidi'
 import { useProjects } from '@/state/projects'
@@ -17,6 +17,9 @@ export function ScanView(): ReactNode {
   const p = scan?.progress
   const phase = p?.phase ?? 'saving'
   const found = p?.projectsFound ?? []
+  // Claude reports a file when it has finished reading it, and it usually starts with a
+  // folder-wide listing. Until the first file arrives, say what's happening instead of "0".
+  const warmingUp = (p?.filesRead ?? 0) === 0 && (phase === 'saving' || phase === 'reading')
 
   return (
     <FullScreen>
@@ -37,9 +40,18 @@ export function ScanView(): ReactNode {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-[12px] border border-border bg-card p-5">
-          <div className="font-display text-3xl text-ink" data-testid="scan-files">
-            {tx('scan.filesRead', { count: p?.filesRead ?? 0 })}
-          </div>
+          {warmingUp ? (
+            <div className="flex flex-col gap-3" data-testid="scan-files" data-state="waiting">
+              <div className="font-display text-3xl text-ink">{tx('scan.warmingUp')}</div>
+              <div className="h-1 overflow-hidden rounded-full bg-border" aria-hidden>
+                <div className="h-full w-1/4 animate-pulse rounded-full bg-running" />
+              </div>
+            </div>
+          ) : (
+            <div className="font-display text-3xl text-ink" data-testid="scan-files" data-state="counting">
+              {tx('scan.filesRead', { count: p?.filesRead ?? 0 })}
+            </div>
+          )}
         </div>
         <div className="rounded-[12px] border border-border bg-card p-5">
           <div className="font-display text-3xl text-ink">{tx('scan.projectsFound', { count: found.length })}</div>
@@ -65,7 +77,9 @@ export function ScanView(): ReactNode {
             `max turns    ${SCAN_LIMITS.maxTurns}`,
             `max budget   $${SCAN_LIMITS.maxBudgetUsd}`,
             `time limit   ${SCAN_LIMITS.timeoutMs / 60_000} min`,
-            `tools        Read, Glob, Write/Edit (.revive/manifest.json only)`
+            `tools        Read, Glob, Write/Edit (.revive/manifest.json only)`,
+            ``,
+            `descriptions ${DESCRIBE_MODEL}, no tools, max turns ${DESCRIBE_LIMITS.maxTurns}, max $${DESCRIBE_LIMITS.maxBudgetUsd}`
           ].join('\n')}
         </LtrBlock>
       </TechnicalDetails>

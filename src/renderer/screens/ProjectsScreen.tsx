@@ -12,23 +12,34 @@ import { Notice } from '@/components/Notice'
 import { LogBlock } from '@/components/LogBlock'
 import { TechnicalDetails } from '@/components/TechnicalDetails'
 import { ProjectCard } from '@/components/ProjectCard'
+import { RunReason } from '@/components/RunReason'
+import { displayStatus, useRuntime } from '@/state/runtime'
+import { transport } from '@/transport'
 
 function ScanResult({ result, onCheckComputer }: { result: ScanDone; onCheckComputer: () => void }): ReactNode {
   const { t, tx } = useT()
   const { startScan, dismissResult } = useProjects()
-  const cost = result.costUsd !== null && result.costUsd > 0 ? <p className="text-sm text-muted">{tx('projects.cost', { cost: result.costUsd })}</p> : null
+  const cost = result.costUsd !== null && result.costUsd > 0 ? <p className="text-sm text-muted" data-testid="scan-cost">{tx('projects.cost', { cost: result.costUsd })}</p> : null
+  // Each Claude call and its model, as Claude reported them.
+  const parts =
+    result.costParts.length > 0 ? (
+      <LtrBlock label={t('projects.costParts')}>
+        {result.costParts.map((p) => `${p.step.padEnd(10)} ${p.model.padEnd(8)} ${p.usd === null ? '—' : `$${p.usd.toFixed(4)}`}`).join('\n')}
+      </LtrBlock>
+    ) : null
 
   if (result.ok) {
     return (
       <Notice tone="ok" testId="scan-result" actions={<Button variant="quiet" onClick={dismissResult}>{tx('common.continue')}</Button>}>
         <p>{tx('projects.found', { count: result.manifest.projects.length })}</p>
         {cost}
+        {parts ? <TechnicalDetails>{parts}</TechnicalDetails> : null}
       </Notice>
     )
   }
 
   const e = result.error
-  const needsComputer = e.code === 'claude_missing' || e.code === 'auth'
+  const needsComputer = e.code === 'claude_missing' || e.code === 'auth' || e.code === 'unsafe_claude'
   return (
     <Notice
       tone={e.code === 'cancelled' ? 'attention' : 'broken'}
@@ -45,8 +56,9 @@ function ScanResult({ result, onCheckComputer }: { result: ScanDone; onCheckComp
         {tx(`scanError.${e.code}`)}
       </p>
       {cost}
-      {e.restored?.length || e.quarantined?.length || e.unrestorable?.length || e.detail?.length ? (
+      {e.restored?.length || e.quarantined?.length || e.unrestorable?.length || e.detail?.length || parts ? (
         <TechnicalDetails>
+          {parts}
           {e.restored?.length ? <LtrBlock label={t('scanError.restored')}>{e.restored.join('\n')}</LtrBlock> : null}
           {e.quarantined?.length ? <LtrBlock label={t('scanError.quarantined')}>{['.revive/quarantine/', ...e.quarantined.map((q) => `  ${q}`)].join('\n')}</LtrBlock> : null}
           {e.unrestorable?.length ? <LtrBlock label={t('scanError.unrestorable')}>{e.unrestorable.join('\n')}</LtrBlock> : null}
@@ -59,6 +71,7 @@ function ScanResult({ result, onCheckComputer }: { result: ScanDone; onCheckComp
 
 function Gallery({ manifest, folder, onOpenProject }: { manifest: Manifest; folder: string; onOpenProject: (id: string) => void }): ReactNode {
   const { t, tx } = useT()
+  const { runs, shots, start } = useRuntime()
   if (manifest.projects.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center text-muted">
@@ -70,10 +83,26 @@ function Gallery({ manifest, folder, onOpenProject }: { manifest: Manifest; fold
     <div className="flex flex-col gap-6">
       {/* 4 columns from 1280px, 3 from 960px, 2 below. */}
       <div data-testid="gallery" className="grid grid-cols-2 gap-5 min-[960px]:grid-cols-3 min-[1280px]:grid-cols-4">
-        {manifest.projects.map((p) => (
-          // Starting and checking arrive with the runner (M4); for now both open the project page.
-          <ProjectCard key={p.id} project={p} onOpen={() => onOpenProject(p.id)} onAction={() => onOpenProject(p.id)} />
-        ))}
+        {manifest.projects.map((p) => {
+          const run = runs[p.id]
+          const status = displayStatus(p, run)
+          // One button starts the project and shows it: Start and Check both start, then open the page.
+          const act = () => {
+            if (status.kind !== 'running' && status.kind !== 'busy') start(p.id)
+            onOpenProject(p.id)
+          }
+          return (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              status={status}
+              picture={shots[p.id]}
+              onOpen={() => onOpenProject(p.id)}
+              onAction={act}
+              explanation={run?.reason && status.kind === 'broken' ? <RunReason project={p} reason={run.reason} /> : undefined}
+            />
+          )
+        })}
       </div>
       {manifest.loose_files.length > 0 ? (
         <p data-testid="loose-files" className="text-[15px] text-muted">
@@ -108,7 +137,7 @@ export function ProjectsScreen({
   useEffect(() => {
     if (!folder) return
     let alive = true
-    void window.revive.invoke('folder:check', { path: folder }).then((check) => {
+    void transport.invoke('folder:check', { path: folder }).then((check) => {
       if (!alive) return
       setProblem(check.ok ? null : check.problem)
       setName(check.ok ? check.name : null)

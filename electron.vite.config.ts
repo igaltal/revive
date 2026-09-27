@@ -9,7 +9,13 @@ const shared = { '@shared': resolve('src/shared') }
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
-    resolve: { alias: shared }
+    resolve: { alias: shared },
+    build: {
+      rollupOptions: {
+        // The file server for plain pages runs as its own process, so it is its own entry.
+        input: { index: resolve('src/main/index.ts'), 'static-server': resolve('src/main/services/runner/static-server.ts') }
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

@@ -87,3 +87,82 @@ test('read the folder: saved version first, progress, gallery, nothing outside .
   await expect(win2.getByTestId('project-card')).toHaveCount(2)
   await again.close()
 })
+
+test('start a project: live preview, picture, status saved, stop, and nothing outlives Revive', async () => {
+  const { readFileSync, existsSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { connect } = await import('node:net')
+  const listening = (port: number) =>
+    new Promise<boolean>((resolve) => {
+      const s = connect({ port, host: '127.0.0.1' })
+      s.once('connect', () => (s.destroy(), resolve(true)))
+      s.once('error', () => resolve(false))
+    })
+  const userData = freshUserData()
+  const folder = sampleFolder()
+  const manifestOf = () => JSON.parse(readFileSync(join(folder, '.revive/manifest.json'), 'utf8'))
+
+  const app = await launch(userData)
+  const win = await app.firstWindow()
+  // Any renderer crash fails the test, not just a missing element later on.
+  const pageErrors: string[] = []
+  win.on('pageerror', (e) => pageErrors.push(e.message))
+  await win.getByTestId('welcome-en').click()
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, folder)
+  await win.getByTestId('folder-pick').click()
+  await win.getByTestId('scan-start').click()
+  await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  // Indexing and descriptions both counted: $0.01 + $0.02.
+  await expect(win.getByTestId('scan-cost')).toContainText('$0.03')
+
+  // One button: "Check if it works" starts the plain-HTML bakery site and opens its page.
+  await win.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
+  await expect(win.getByTestId('project-page')).toBeVisible()
+  await expect(win.getByTestId('status-pill')).toHaveAttribute('data-status', 'running', { timeout: 30_000 })
+  await expect(win.getByTestId('preview-frame')).toBeVisible()
+
+  // The live preview is a native view over the frame, showing the local server.
+  const view = async () =>
+    app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0]!
+      const v = w.contentView.children[0] as Electron.WebContentsView | undefined
+      return v ? { url: v.webContents.getURL(), bounds: v.getBounds(), title: v.webContents.getTitle() } : null
+    })
+  await expect.poll(async () => (await view())?.url ?? '', { timeout: 15_000 }).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/)
+  const url = (await view())!.url
+  const port = Number(new URL(url).port)
+  await expect.poll(async () => (await view())?.title).toContain('Bakery')
+
+  await win.getByTestId('device-phone').click()
+  await expect.poll(async () => (await view())?.bounds.width).toBe(390)
+
+  // Facts saved for any client: verified, with the address and port.
+  await expect.poll(() => manifestOf().projects[0].status).toBe('verified')
+  expect(manifestOf().projects[0].run).toMatchObject({ url, port })
+  expect(manifestOf().projects[0].run.verified_at).toBeTruthy()
+
+  // A picture was taken offscreen and is served through revive://, never file://.
+  await expect.poll(() => existsSync(join(folder, '.revive/shots/bakery-site.png')), { timeout: 20_000 }).toBe(true)
+
+  await win.getByTestId('project-stop').click()
+  await expect(win.getByTestId('status-pill')).toHaveAttribute('data-status', 'verified')
+  await expect(win.getByTestId('preview-frame')).toHaveCount(0)
+  expect(await view()).toBeNull()
+  expect(await listening(port)).toBe(false)
+
+  await win.getByText('My projects').first().click()
+  const picture = win.locator('[data-project="bakery-site"]').getByTestId('project-picture')
+  await expect(picture).toHaveAttribute('src', /^revive:\/\/local\/shots\/bakery-site\.png\?v=\d+$/)
+  await expect.poll(() => picture.evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBeGreaterThan(100)
+
+  // Start again, then quit: the server must not outlive Revive.
+  await win.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
+  await expect(win.getByTestId('status-pill')).toHaveAttribute('data-status', 'running', { timeout: 30_000 })
+  const port2 = Number(new URL(manifestOf().projects[0].run.url).port)
+  expect(await listening(port2)).toBe(true)
+  expect(pageErrors).toEqual([])
+  await app.close()
+  expect(await listening(port2)).toBe(false)
+})

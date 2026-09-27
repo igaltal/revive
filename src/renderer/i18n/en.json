@@ -84,7 +84,8 @@
     "invalid": "Revive's list of projects for this folder can't be read. Reading the folder again will fix it.",
     "checkComputer": "Check my computer",
     "loose": "{count, plural, one {# file isn't part of any project.} other {# files aren't part of any project.}}",
-    "looseList": "Loose files"
+    "looseList": "Loose files",
+    "costParts": "Cost of each step"
   },
   "history": {
     "subtitle": "Every saved version, so you can always go back.",
@@ -101,7 +102,9 @@
     "keys": "Key names",
     "notes": "Notes from the reading",
     "notFound": "Not found",
-    "model": "Model"
+    "model": "Model",
+    "url": "Address",
+    "log": "What the project printed"
   },
   "common": {
     "continue": "Continue",
@@ -205,7 +208,8 @@
       "saving": "Saving a version first, so nothing can be lost.",
       "reading": "Claude is reading your projects.",
       "checking": "Making sure nothing outside Revive's folder changed.",
-      "done": "Done."
+      "done": "Done.",
+      "describing": "Writing a short description of each project."
     },
     "timeNote": "This usually takes a minute or two.",
     "filesRead": "{count, plural, one {# file read} other {# files read}}",
@@ -213,7 +217,8 @@
     "rootProject": "The folder itself",
     "recent": "Files Claude read just now",
     "stop": "Stop reading",
-    "limits": "Limits for this reading"
+    "limits": "Limits for this reading",
+    "warmingUp": "Reading your folder…"
   },
   "scanError": {
     "version_failed": "Revive couldn't save a version first, so it didn't read the folder. Nothing was changed.",
@@ -229,7 +234,8 @@
     "quarantined": "New files, moved aside into Revive's folder:",
     "unrestorable": "Changed, but not part of the saved version:",
     "issues": "What was wrong:",
-    "log": "What Claude said:"
+    "log": "What Claude said:",
+    "unsafe_claude": "This version of Claude Code didn't respect Revive's safety limits, so Revive won't let it read your folder."
   },
   "card": {
     "noDescription": "No description yet."
@@ -239,6 +245,52 @@
     "previewSoon": "A live picture of this project will appear here once it has been started.",
     "keysNone": "This project doesn't need any keys.",
     "keyNeeded": "Needed",
-    "keyOptional": "Optional"
+    "keyOptional": "Optional",
+    "pictureNote": "The picture from the last time it opened."
+  },
+  "guard": {
+    "title": "Revive can't safely use this version of Claude Code",
+    "body": "Revive limits how long Claude may work on each reading. In a short test, Claude Code {version} didn't stop at that limit, so Revive won't let it read your folders. Updating Claude Code usually fixes this.",
+    "update": "How to update Claude Code",
+    "detail": "What the check saw"
+  },
+  "run": {
+    "phase": {
+      "idle": "Not started",
+      "installing": "Getting things ready",
+      "starting": "Starting",
+      "checking": "Checking that it opens",
+      "running": "Running now",
+      "stopping": "Stopping",
+      "stopped": "Stopped",
+      "broken": "Needs fixing"
+    },
+    "busy": {
+      "idle": "Not started.",
+      "installing": "Getting the parts this project needs. The first time can take a few minutes.",
+      "starting": "Starting the project.",
+      "checking": "Checking that it opens.",
+      "running": "Running.",
+      "stopping": "Stopping.",
+      "stopped": "Stopped.",
+      "broken": "Needs fixing."
+    },
+    "reason": {
+      "missing_key": "It stopped because a key is missing: {purpose}.",
+      "port_busy": "Another copy of this project is already running.",
+      "deps_missing": "Some parts this project needs aren't downloaded yet. Checking again will get them.",
+      "tool_missing": "This project needs {tool}, which isn't installed on this computer.",
+      "install_failed": "Getting the parts this project needs didn't work.",
+      "no_start_command": "Revive doesn't know how to start this project yet.",
+      "exited": "The project stopped on its own.",
+      "timeout": "The project didn't open in time, so Revive stopped it.",
+      "unknown": "Something went wrong and we're not sure why yet."
+    }
+  },
+  "preview": {
+    "desktop": "Computer",
+    "phone": "Phone",
+    "reload": "Reload",
+    "openInBrowser": "Open in browser"
   }
 }

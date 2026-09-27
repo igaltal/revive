@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 import type { Project } from '@shared/manifest'
 import { useT } from '@/i18n/useT'
 import { BidiText } from '@/i18n/bidi'
+import type { DisplayStatus } from '@/state/runtime'
 import { StatusPill } from './StatusPill'
 import { Button } from './Button'
 import { cx } from './cx'
 
 /** The one action that matches the status. */
-export function actionKeyFor(status: Project['status']): string {
-  if (status === 'running') return 'vocab.open'
+export function actionKeyFor(status: DisplayStatus['kind']): string {
+  if (status === 'running' || status === 'busy') return 'vocab.open'
   if (status === 'verified') return 'vocab.start'
   return 'vocab.checkIfItWorks'
 }
@@ -18,9 +19,9 @@ export function localized(text: { en: string; he: string }, lang: string): strin
   return primary.trim() || (lang === 'he' ? text.en : text.he)
 }
 
-/** Neutral picture until a real one is captured after the first start (M4). */
+/** The picture from the last successful start; a neutral placeholder before that. */
 export function ProjectPicture({ project, src, className = 'aspect-[16/10]' }: { project: Project; src?: string | null; className?: string }): ReactNode {
-  if (src) return <img src={src} alt="" className={cx(className, 'w-full border-b border-border object-cover object-top')} />
+  if (src) return <img src={src} alt="" data-testid="project-picture" className={cx(className, 'w-full border-b border-border bg-white object-cover object-top')} />
   return (
     <div className={cx(className, 'flex w-full items-center justify-center border-b border-border bg-bg')} aria-hidden>
       <span className="font-display text-5xl text-muted/60">
@@ -30,13 +31,27 @@ export function ProjectPicture({ project, src, className = 'aspect-[16/10]' }: {
   )
 }
 
-export function ProjectCard({ project, onOpen, onAction, explanation }: { project: Project; onOpen: () => void; onAction: () => void; explanation?: ReactNode }): ReactNode {
+export function ProjectCard({
+  project,
+  status,
+  picture,
+  onOpen,
+  onAction,
+  explanation
+}: {
+  project: Project
+  status: DisplayStatus
+  picture?: string | null
+  onOpen: () => void
+  onAction: () => void
+  explanation?: ReactNode
+}): ReactNode {
   const { tx, lang } = useT()
   const description = localized(project.description, lang)
   return (
     <article data-testid="project-card" data-project={project.id} className="flex flex-col overflow-hidden rounded-[12px] border border-border bg-card shadow-sm">
       <button type="button" onClick={onOpen} className="text-start" aria-label={project.name}>
-        <ProjectPicture project={project} />
+        <ProjectPicture project={project} src={picture} />
       </button>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
@@ -51,9 +66,9 @@ export function ProjectCard({ project, onOpen, onAction, explanation }: { projec
         </div>
         {explanation ? <p className="text-sm leading-relaxed text-broken">{explanation}</p> : null}
         <div className="mt-auto flex flex-col items-start gap-3 pt-1">
-          <StatusPill status={project.status} />
-          <Button variant={project.status === 'running' ? 'primary' : 'secondary'} className="w-full" data-testid="card-action" onClick={onAction}>
-            {tx(actionKeyFor(project.status))}
+          <StatusPill status={status} />
+          <Button variant={status.kind === 'running' ? 'primary' : 'secondary'} className="w-full" data-testid="card-action" onClick={onAction}>
+            {tx(actionKeyFor(status.kind))}
           </Button>
         </div>
       </div>
