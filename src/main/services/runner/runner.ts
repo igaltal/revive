@@ -68,7 +68,8 @@ interface Run {
   stopping: boolean
 }
 
-const shellRef = (projectId: string): SessionRef => ({ projectId, agent: 'shell' })
+/** Install and dev server commands run in the project's `run` session; `shell` is for people. */
+const runRef = (projectId: string): SessionRef => ({ projectId, kind: 'run' })
 const firstWord = (cmd: string | null) => (cmd ?? '').trim().split(/\s+/)[0]?.replace(/^.*\//, '') ?? ''
 
 /** Runs until the signal aborts; resolves 'aborted' instead of throwing. */
@@ -116,7 +117,7 @@ export class Runner {
   }
 
   logs(projectId: string): string[] {
-    return this.deps.hub.log(shellRef(projectId))
+    return this.deps.hub.log(runRef(projectId))
   }
 
   async start(projectId: string): Promise<RunState> {
@@ -130,7 +131,7 @@ export class Runner {
       stopping: false
     }
     this.runs.set(projectId, run)
-    this.deps.hub.clearLog(shellRef(projectId))
+    this.deps.hub.clearLog(runRef(projectId))
 
     const plan = this.plan(dir, project)
     if (!plan) {
@@ -154,7 +155,7 @@ export class Runner {
     run.stopping = true
     run.abort.abort()
     this.set(run, { status: 'stopping' })
-    await this.deps.hub.kill(shellRef(projectId))
+    await this.deps.hub.kill(runRef(projectId))
     this.set(run, { status: 'stopped', reason: null })
     return { ...run.state }
   }
@@ -190,7 +191,7 @@ export class Runner {
 
   private async execute(run: Run, dir: string, project: Project, plan: Plan, install: string | null, secrets: { values: string[] }): Promise<void> {
     const { projectId } = run.state
-    const ref = shellRef(projectId)
+    const ref = runRef(projectId)
     const tools = [firstWord(plan.install), firstWord(project.run.dev)].filter(Boolean)
     const keys = project.keys.map((k) => k.key)
     const shell = this.deps.shell ?? process.env['SHELL'] ?? '/bin/zsh'
@@ -300,7 +301,7 @@ export class Runner {
   }
 
   private async failStart(run: Run, step: RunStep, timedOut: boolean, keys: string[], tools: string[]): Promise<void> {
-    await this.deps.hub.kill(shellRef(run.state.projectId))
+    await this.deps.hub.kill(runRef(run.state.projectId))
     if (run.stopping) return
     const reason = this.explainer.explain({ log: this.logs(run.state.projectId), step, timedOut, keys, tools })
     return this.fail(run, reason)

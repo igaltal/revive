@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
@@ -91,9 +91,26 @@ function within(dir: string, rel: string): string | null {
  * index and stash stay exactly as they were.
  */
 export async function saveVersion(folder: string, title: VersionRecord['title'], kind: VersionKind, extra: Partial<VersionRecord> = {}): Promise<VersionRecord> {
+  const id = newId()
+  const parts = await snapshotParts(folder, `Revive: ${title.en}\n\nrevive-version: ${id}\nkind: ${kind}\n`)
+  for (const part of parts) {
+    const g = git(partEnv(folder, part))
+    await g.raw(['update-ref', `refs/revive/versions/${id}`, part.commit])
+    await g.raw(['update-ref', 'refs/revive/latest', part.commit])
+  }
+  const record: VersionRecord = { id, title, kind, createdAt: new Date().toISOString(), parts, ...extra }
+  await appendVersion(folder, record)
+  return record
+}
+
+/**
+ * Snapshots the folder as it is now, one commit per repository, without
+ * recording a version or moving any ref. Used to compare "now" with a saved
+ * version before the user decides.
+ */
+export async function snapshotParts(folder: string, message = 'Revive: comparison\n'): Promise<VersionPart[]> {
   await ensureReviveDir(folder)
   const { parts: found, bigFiles } = await discoverParts(folder)
-  const id = newId()
   const parts: VersionPart[] = []
 
   for (const part of found) {
@@ -110,17 +127,11 @@ export async function saveVersion(folder: string, title: VersionRecord['title'],
     await g.raw(['add', '--all', '--ignore-errors', '--', ...pathspecs])
     const tree = await g.raw(['write-tree'])
     const parent = (await g.raw(['rev-parse', '--quiet', '--verify', 'refs/revive/latest']).catch(() => '')).trim()
-    const message = `Revive: ${title.en}\n\nrevive-version: ${id}\nkind: ${kind}\n`
     const commitArgs = ['commit-tree', '--no-gpg-sign', tree.trim(), ...(parent ? ['-p', parent] : []), '-m', message]
     const commit = (await g.raw(commitArgs)).trim()
-    await g.raw(['update-ref', `refs/revive/versions/${id}`, commit])
-    await g.raw(['update-ref', 'refs/revive/latest', commit])
     parts.push({ ...part, commit })
   }
-
-  const record: VersionRecord = { id, title, kind, createdAt: new Date().toISOString(), parts, ...extra }
-  await appendVersion(folder, record)
-  return record
+  return parts
 }
 
 /** Picks the part that owns a path: the deepest repository containing it. */
@@ -184,4 +195,77 @@ export async function moveAside(folder: string, bucket: 'quarantine' | 'trash', 
     moved.push(rel)
   }
   return moved
+}
+
+export interface RestorePlan {
+  /** Files to write back from the target version (changed, or gone since). */
+  write: string[]
+  /** Files that exist now but not in the target version: moved to the trash, never deleted. */
+  remove: string[]
+  /** Repositories that appeared after the target version; left exactly as they are. */
+  untouchedParts: string[]
+}
+
+const joinRel = (dir: string, p: string) => (dir === '.' ? p : `${dir}/${p}`)
+
+/**
+ * What bringing back `target` changes, compared with `current` (a version
+ * saved just now). Both are Revive snapshots made with the same rules, so
+ * keys, dependencies and ignored files can never show up here.
+ */
+export async function planRestore(folder: string, current: VersionRecord, target: VersionRecord): Promise<RestorePlan> {
+  const plan: RestorePlan = { write: [], remove: [], untouchedParts: [] }
+  for (const part of target.parts) {
+    const g = git(partEnv(folder, part))
+    const now = current.parts.find((p) => p.dir === part.dir && p.mode === part.mode)
+    if (!now) {
+      // The part isn't a repository any more (or not the same kind): write its files back, remove nothing.
+      const listed = await g.raw(['ls-tree', '-r', '-z', '--name-only', part.commit])
+      plan.write.push(...listed.split('\0').filter(Boolean).map((p) => joinRel(part.dir, p)))
+      continue
+    }
+    if (now.commit === part.commit) continue
+    const out = (await g.raw(['diff-tree', '-r', '-z', '--no-renames', '--name-status', now.commit, part.commit])).split('\0').filter(Boolean)
+    for (let i = 0; i + 1 < out.length; i += 2) {
+      const status = out[i]!
+      const rel = joinRel(part.dir, out[i + 1]!)
+      if (status === 'D') plan.remove.push(rel)
+      else plan.write.push(rel)
+    }
+  }
+  for (const p of current.parts) {
+    if (!target.parts.some((t) => t.dir === p.dir && t.mode === p.mode)) plan.untouchedParts.push(p.dir)
+  }
+  return plan
+}
+
+/** What's in the trash: one folder per restore that moved files aside. */
+export async function trashInfo(folder: string): Promise<{ items: number; bytes: number }> {
+  const root = join(reviveDir(folder), 'trash')
+  if (!existsSync(root)) return { items: 0, bytes: 0 }
+  const { files } = await walkAll(root)
+  return { items: files.length, bytes: files.reduce((n, f) => n + f.size, 0) }
+}
+
+/** Permanently removes .revive/trash. Only ever called after the user confirmed. */
+export async function emptyTrash(folder: string): Promise<number> {
+  const { items } = await trashInfo(folder)
+  await rm(join(reviveDir(folder), 'trash'), { recursive: true, force: true })
+  return items
+}
+
+/** Every file under a folder, including dependency-like names (the trash may hold anything). */
+async function walkAll(root: string): Promise<{ files: Array<{ size: number }> }> {
+  const files: Array<{ size: number }> = []
+  const visit = async (dir: string) => {
+    for (const name of await readdir(dir).catch(() => [] as string[])) {
+      const abs = join(dir, name)
+      const st = await lstat(abs).catch(() => null)
+      if (!st) continue
+      if (st.isDirectory()) await visit(abs)
+      else files.push({ size: st.size })
+    }
+  }
+  await visit(root)
+  return { files }
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { PreviewDevice } from '@shared/ipc'
 import { transport } from '@/transport'
+import { usePreviewCovered } from '@/state/overlay'
+import { useRuntime } from '@/state/runtime'
 
 /**
  * Reserves the spot where the live preview appears. Main draws the running
@@ -9,10 +11,13 @@ import { transport } from '@/transport'
  */
 export function PreviewFrame({ projectId, device }: { projectId: string; device: PreviewDevice }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
+  // While a dialog or menu is open, main has hidden the live view; its latest picture stands in.
+  const covered = usePreviewCovered()
+  const picture = useRuntime().shots[projectId]
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || covered) return
     let frame = 0
     const report = () => {
       frame = 0
@@ -43,7 +48,13 @@ export function PreviewFrame({ projectId, device }: { projectId: string; device:
       document.removeEventListener('scroll', schedule, true)
       void transport.invoke('preview:hide')
     }
-  }, [projectId, device])
+  }, [projectId, device, covered])
 
-  return <div ref={ref} data-testid="preview-frame" data-device={device} className="h-[560px] w-full bg-bg" />
+  return (
+    <div ref={ref} data-testid="preview-frame" data-device={device} data-covered={covered} className="flex h-[560px] w-full justify-center overflow-hidden bg-bg">
+      {covered && picture ? (
+        <img src={picture} alt="" data-testid="preview-standin" className={device === 'phone' ? 'h-full w-[390px] object-cover object-top' : 'h-full w-full object-cover object-top'} />
+      ) : null}
+    </div>
+  )
 }

@@ -2,8 +2,8 @@
 
 Status: **approved 2026-09-25.** M1 done; see Progress at the bottom.
 
-Sources: the build prompt (source of truth for scope) and
-`Revive PRD v2 The No Code Home for Everything You Build with AI.pdf` (there is no `docs/PRD.md`).
+Sources: the build prompt (source of truth for scope),
+`Revive PRD v2 The No Code Home for Everything You Build with AI.pdf` (there is no `docs/PRD.md`), and `docs/HOST_PRD.md` (Revive Host, from M5 on).
 
 ---
 
@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [ ] M5
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -319,3 +319,68 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 - **Not verified live:** "Open in browser" (it would open your browser during tests; the URL check is unit-level), and how the preview looks while the page scrolls under it (the clipping math is simple, but I didn't watch it).
 
 *Try it:* `npm run dev`, open a project, press Start / Check if it works. Offline dry run: `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` with a copy of `fixtures/sample-folder`; "Sunrise Bakery" starts with no network, "Habit counter" runs `npm install` first. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`, and `npm run test:live` (about $0.01).
+
+### M5: done (2026-09-28)
+
+**Host PRD.** It wasn't on disk, so I saved your pasted text as `docs/HOST_PRD.md`. The paste arrived as one line: I restored the headings, lists and tables; the wording is unchanged, and the two diagrams stay in the online PRD. What it changed in M5:
+- Session identity is `{projectId, kind}`, which maps 1:1 to the future tmux name `revive-<project>-<kind>`.
+- Version operations are generic service calls on a version id, so "changes from last night, keep or undo" can use them.
+- Version events go on the one stream.
+- Destructive actions need explicit confirmation.
+
+**Changes from the M4 report**
+1. **A fourth session kind, `run`.** `SESSION_KINDS = run | shell | claude | codex`. The field is now `kind` (it was `agent`). Install and dev commands run in `<projectId>:run`; `shell` is for interactive terminals only. `sessionId()` and `parseSessionId()` turn the identity into a string and back (`my-app:run`).
+2. **Split event history.**
+   - The replay buffer (`runtime:since {seq}`) keeps only numbered **state** events: `process.started`, `port.detected`, `status.changed`, `process.exited`, `shot.captured`, `manifest.changed`, `version.saved`, `version.restored`, `trash.emptied`. A compile-time check fails if a new state event isn't listed.
+   - `process.output` is broadcast live without a number. It carries `offset` (bytes) and lives in a **per-session buffer** of the last 256 KB, with offsets that never go back, even across restarts.
+   - It's fetched with `sessions:output {sessionId, fromOffset}` → `{data, fromOffset, nextOffset, truncated}`. Whole chunks are dropped from the front, so a character is never split.
+   - The readable log under Technical details is derived from the same buffer (stored once).
+   - **The test you asked for:** a real dev server writes 10,000 lines (about 700 KB). A client that connects afterwards gets every status change from the replay (`starting → … → running → stopping → stopped`) and no output events. From the session buffer it gets the last 256 KB, ending with the real "Local: http://…" line, with `truncated: true`. With M4's single 2,000-event history, those status changes would have been pushed out.
+3. **Native preview vs overlays: one hook, `useOverlay(open)`.**
+   - When the first overlay opens, main pictures the live view (`capturePage`), saves it as the project's latest picture (`shot.captured`), and hides the view. The overlay draws only after that, so it never flickers under the native view.
+   - The preview's spot shows that picture meanwhile. When the last overlay closes, the view comes back at its current spot.
+   - Main ignores `preview:show` while covered, and a hide while it's still picturing, so no ordering race can leave it visible or blank.
+   - `Dialog` is the one modal and uses the hook.
+   - `tests/overlay-preview.test.ts` fails if any renderer file with a dialog, menu, listbox, sheet, `aria-modal` or `popover` doesn't call `useOverlay`.
+
+**M5**
+- **`main/services/versions/VersionService`** (plain TypeScript; the IPC handlers pass input straight through):
+  - Calls: `list`, `save`, `preview`, `restore`, `undo`, `trash`, `emptyTrash`.
+  - **Input is checked with zod inside the service** (`VersionInput`, and `EmptyTrashInput = {confirm: true}` only), so any transport gets the same checks. Bad input rejects; it never throws synchronously.
+  - One operation at a time. Refused with `busy` while a scan reads the folder, and a scan waits for any restore in progress.
+- **Going back:**
+  1. Compare "now" with the target and **stop the `run` session of every running project whose files will change**.
+  2. **Save the folder as it is now** (kind `restore`, `restoredFrom` = the target). Going back to it is the undo.
+  3. Diff the two Revive snapshots with `git diff-tree`, then write back changed or deleted files and **move files made since into `.revive/trash/`** (never deleted).
+  4. Mark the touched projects `unknown` ("checked and working" no longer holds for that code).
+  5. Emit `version.saved`, `manifest.changed` and `version.restored {how, versionId, undoVersionId, changedFiles, stoppedProjects}`.
+  - Because both sides are Revive snapshots, `.env` files, dependencies, big files and ignored files can't appear in a restore: they're left exactly as they are.
+  - Repositories that appeared after the target version are left alone.
+  - Inside the user's own repo, HEAD, branch, index file (hashed) and `git status` are unchanged (tested).
+- **Undo** = going back to the version saved just before (kind `undo`). Undoing an undo works the same way.
+- **"Start it again"**: the result comes from the stream, so a restore made later from the phone shows the same way. It names what was stopped, with a Start button each.
+- **History screen:**
+  - Saved versions newest first, each with a plain title and time ("Before reading the folder", "Before going back to the version from Sep 27, 2026, 9:00", "Saved by you", "Before undoing a go back").
+  - "Go back to this version" on each, and "Save a version now".
+  - The go-back confirmation first shows what would change ("1 file will go back the way it was. 1 file made since then will move to Revive's trash. First, Revive will stop: Sunrise Bakery."), with paths under Technical details.
+  - After a go back: Undo, and "Sunrise Bakery was running before. Start it again?".
+  - **Revive's trash**: items and size, "Empty the trash" behind a confirmation ("2 files will be deleted for good. This can't be undone." Keep them / Empty the trash).
+  - "Keys are never included in saved versions."
+- **Project page:** "Go back to an earlier version" opens the saved-versions list over the live preview, which is where the overlay hook matters. The post-restore notice shows here too.
+- **Found while checking:**
+  - **The Hebrew trash line** used a plural verb with "one file" (קובץ אחד הועברו); the verb now sits inside each plural branch.
+  - **Two test races:** a component test clicked a card before the live run list arrived. The runner tests' waits allowed 15 s, but Vitest's default per-test limit was 5 s; that file now allows 20 s.
+
+**Tests.** 158 unit and component tests (was 142), plus 4 Electron smoke tests. The full suite ran clean 13 times in a row after the fixes.
+- **Versions** (real git, temp folders): go back puts files back, moves new ones to the trash, leaves `.env` and `node_modules` alone, stops only the affected running project, marks it `unknown`, and puts the undo point and the restore on the stream. Undo brings everything back. Also: the user-repo invariants; bad input rejected; `busy` during a scan; `not_found`; the trash emptied only with `{confirm: true}`.
+- **Sessions:** output buffer (byte cap, offsets, Hebrew text not split), replay excludes output, session ids, the 10,000-line late client.
+- **Renderer:** History titles, go back only after the preview, Undo, "start it again", the busy sentence, trash confirmation. The overlay test proves the dialog doesn't draw until main confirms the preview is hidden, the picture stands in, no `preview:show` happens while covered, and the preview comes back on close.
+- **e2e (built app):** read the folder → start the bakery → change a file and add one (as an agent would) → open the versions list over the live preview (the native view is hidden and the picture stands in, then restored) → go back → the file is back, the new one is in the trash, the bakery was stopped → "Start" brings it back → History titles → Undo brings the change back → empty the trash → gone. No renderer errors.
+
+**Notes for you**
+- **Versions are the whole folder,** every project in it (as planned: one shadow repo plus the nested user repos). Going back from a project page therefore also changes other projects' files if they changed since. The confirmation lists the count, the paths and anything that will stop.
+- **The first picture a dialog shows can be seconds old:** the latest picture updates only when the capture finishes, and the dialog waits for that (at most 400 ms).
+- **For the Host PRD's action log:** version and runner calls don't carry "who did this" yet. M7 can add a device or actor field to the service inputs without changing their shape otherwise.
+- `npm run test:live` wasn't rerun: nothing in the scan or turn-limit path changed in M5.
+
+*Try it:* `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` with a copy of `fixtures/sample-folder`. Read the folder, start Sunrise Bakery, edit `bakery-site/index.html` in an editor, then "Go back to an earlier version" on its page; try Undo and the trash in History. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.

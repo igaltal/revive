@@ -14,8 +14,12 @@ import { Notice } from '@/components/Notice'
 import { RunReason } from '@/components/RunReason'
 import { PreviewFrame } from '@/components/PreviewFrame'
 import { ProjectPicture, actionKeyFor, localized } from '@/components/ProjectCard'
-import { ChevronBack, PlayIcon } from '@/components/icons'
+import { ChevronBack, PlayIcon, UndoIcon } from '@/components/icons'
 import { cx } from '@/components/cx'
+import { Dialog } from '@/components/Dialog'
+import { RestoreDialog, RestoreDone, VersionTitle } from '@/components/versions'
+import { useVersions } from '@/state/versions'
+import type { VersionSummary } from '@shared/versions'
 
 function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
@@ -53,6 +57,9 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
   const { runs, shots, start, stop } = useRuntime()
   const [device, setDevice] = useState<PreviewDevice>('desktop')
   const log = useProjectLog(projectId)
+  const { versions, lastRestore } = useVersions()
+  const [listOpen, setListOpen] = useState(false)
+  const [chosen, setChosen] = useState<VersionSummary | null>(null)
   const project: Project | undefined = manifest?.state === 'ok' ? manifest.manifest.projects.find((p) => p.id === projectId) : undefined
 
   if (!project) return null
@@ -77,17 +84,25 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           </h1>
           <StatusPill status={status} />
         </div>
-        {live ? (
-          <Button variant="secondary" data-testid="project-stop" disabled={status.kind === 'busy' && status.phase === 'stopping'} onClick={() => stop(projectId)}>
-            {tx('vocab.stop')}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="quiet" data-testid="project-versions" onClick={() => setListOpen(true)}>
+            <UndoIcon />
+            {tx('project.versions')}
           </Button>
-        ) : (
-          <Button data-testid="project-start" onClick={() => start(projectId)}>
-            <PlayIcon />
-            {tx(actionKeyFor(status.kind))}
-          </Button>
-        )}
+          {live ? (
+            <Button variant="secondary" data-testid="project-stop" disabled={status.kind === 'busy' && status.phase === 'stopping'} onClick={() => stop(projectId)}>
+              {tx('vocab.stop')}
+            </Button>
+          ) : (
+            <Button data-testid="project-start" onClick={() => start(projectId)}>
+              <PlayIcon />
+              {tx(actionKeyFor(status.kind))}
+            </Button>
+          )}
+        </div>
       </header>
+
+      {lastRestore ? <RestoreDone restore={lastRestore} /> : null}
 
       {status.kind === 'running' ? (
         <div className="flex flex-col overflow-hidden rounded-[12px] border border-border bg-card" data-testid="preview">
@@ -170,6 +185,45 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
         {project.notes.length > 0 ? <LogBlock lines={project.notes} label={t('technical.notes')} /> : null}
         {log.length > 0 ? <LogBlock lines={log} label={t('technical.log')} /> : null}
       </TechnicalDetails>
+
+      <Dialog
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        testId="versions-dialog"
+        title={tx('project.versionsTitle')}
+        actions={
+          <Button variant="quiet" onClick={() => setListOpen(false)}>
+            {tx('common.close')}
+          </Button>
+        }
+      >
+        <p className="text-muted">{tx('project.versionsNote')}</p>
+        {versions && versions.length > 0 ? (
+          <ul className="flex max-h-80 flex-col divide-y divide-border overflow-y-auto">
+            {versions.slice(0, 8).map((v) => (
+              <li key={v.id}>
+                <button
+                  type="button"
+                  data-testid="versions-dialog-row"
+                  className="flex w-full flex-col items-start gap-0.5 py-3 text-start hover:bg-ink/5"
+                  onClick={() => {
+                    setListOpen(false)
+                    setChosen(v)
+                  }}
+                >
+                  <span className="font-medium text-ink">
+                    <VersionTitle version={v} versions={versions} />
+                  </span>
+                  <span className="text-sm text-muted">{tx('history.when', { date: new Date(v.createdAt) })}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>{tx('history.empty')}</p>
+        )}
+      </Dialog>
+      <RestoreDialog version={chosen} onClose={() => setChosen(null)} />
     </div>
   )
 }

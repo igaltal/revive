@@ -8,6 +8,7 @@ import { applyDescriptions, backupManifest, describeInputs, manifestPath, mergeA
 import { ensureReviveDir, moveAside, restoreFiles, saveVersion } from '../versions/snapshot'
 import { diffFingerprints, fingerprint, isClean } from './fs-fingerprint'
 import type { AgentAdapter } from './agent-adapter'
+import type { VersionRecord } from '@shared/versions'
 
 export const SCAN_VERSION_TITLE = { en: 'Before reading the folder', he: 'לפני קריאת התיקייה' }
 
@@ -19,7 +20,14 @@ async function setAsideRejected(folder: string): Promise<void> {
 
 export async function runScan(
   folder: string,
-  deps: { adapter: AgentAdapter; model: string; scanId: string; signal: AbortSignal; onProgress: (p: ScanProgress) => void }
+  deps: {
+    adapter: AgentAdapter
+    model: string
+    scanId: string
+    signal: AbortSignal
+    onProgress: (p: ScanProgress) => void
+    onVersionSaved?: (v: VersionRecord) => void
+  }
 ): Promise<ScanDone> {
   const { scanId } = deps
   const progress: ScanProgress = { scanId, phase: 'saving', filesRead: 0, projectsFound: [], recent: [] }
@@ -36,6 +44,7 @@ export async function runScan(
     await writeSchema(folder)
     await backupManifest(folder)
     version = await saveVersion(folder, SCAN_VERSION_TITLE, 'scan')
+    deps.onVersionSaved?.(version)
   } catch (e) {
     return { scanId, ok: false, costUsd: null, costParts: [], error: { code: 'version_failed', detail: [redact(String((e as Error).message ?? e))] } }
   }

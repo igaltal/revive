@@ -13,7 +13,10 @@ import type { GuardState } from '@shared/guard'
 import type { Workspace } from '../services/workspace'
 import type { Runner } from '../services/runner/runner'
 import type { RuntimeBus } from '../services/runtime-bus'
+import type { SessionHub } from '../services/sessions/session-hub'
+import { parseSessionId, type SessionId } from '@shared/runtime'
 import type { PreviewManager } from '../services/preview/preview-manager'
+import type { VersionService } from '../services/versions/version-service'
 import { listShots } from '../services/shots/shots'
 
 type Handler<C extends RequestChannel> = (args: RequestArgs<C>) => RequestResult<C> | Promise<RequestResult<C>>
@@ -28,6 +31,10 @@ export function send<E extends EventChannel>(win: BrowserWindow | null, event: E
 
 const PathArg = z.object({ path: z.string().min(1).max(4096) })
 const ProjectArg = z.object({ projectId: z.string().min(1).max(80) })
+const SessionOutputArg = z.object({
+  sessionId: z.string().max(120).refine((id) => parseSessionId(id) !== null, 'unknown session').transform((id) => id as SessionId),
+  fromOffset: z.number().int().min(0)
+})
 const Px = z.number().finite().min(-10_000).max(100_000)
 const PreviewArg = ProjectArg.extend({
   bounds: z.object({ x: Px, y: Px, width: Px.min(0), height: Px.min(0) }),
@@ -44,7 +51,9 @@ export function registerIpc(deps: {
   workspace: Workspace
   runner: Runner
   bus: RuntimeBus
+  hub: SessionHub
   preview: PreviewManager
+  versions: VersionService
   guard: { current: () => GuardState; recheck: () => Promise<GuardState> }
 }): void {
   const { settings, getWindow, workspace, runner, preview } = deps
@@ -120,6 +129,10 @@ export function registerIpc(deps: {
   handle('runner:list', () => runner.list())
   handle('runner:logs', (args) => runner.logs(ProjectArg.parse(args).projectId))
   handle('runtime:since', (args) => deps.bus.since(z.object({ seq: z.number().int().min(0) }).parse(args).seq))
+  handle('sessions:output', (args) => {
+    const { sessionId, fromOffset } = SessionOutputArg.parse(args)
+    return deps.hub.output(sessionId, fromOffset)
+  })
   deps.bus.subscribe((event) => send(getWindow(), 'runtime:event', event))
 
   handle('preview:show', (args) => {
@@ -127,6 +140,8 @@ export function registerIpc(deps: {
     preview.show(projectId, bounds, device)
   })
   handle('preview:hide', () => preview.hide())
+  handle('preview:cover', () => preview.cover())
+  handle('preview:uncover', () => preview.uncover())
   handle('preview:reload', () => preview.reload())
   handle('preview:openInBrowser', (args) => preview.openInBrowser(ProjectArg.parse(args).projectId))
 
@@ -134,4 +149,14 @@ export function registerIpc(deps: {
     const ctx = await workspace.projectIds()
     return ctx ? listShots(ctx.folder, [...ctx.projectIds]) : {}
   })
+
+  // Versions: the service validates every input itself.
+  const { versions } = deps
+  handle('versions:list', () => versions.list())
+  handle('versions:save', () => versions.save())
+  handle('versions:preview', (args) => versions.preview(args))
+  handle('versions:restore', (args) => versions.restore(args))
+  handle('versions:undo', (args) => versions.undo(args))
+  handle('trash:info', () => versions.trash())
+  handle('trash:empty', (args) => versions.emptyTrash(args))
 }

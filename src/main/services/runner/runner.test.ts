@@ -40,8 +40,9 @@ function setup(p: Project, files: Record<string, string> = {}, timing = {}) {
   bus.subscribe((e) => events.push(e))
   const records: RunRecord[] = []
   const shots: string[] = []
+  const hub = new SessionHub(childBackend, bus)
   const runner = new Runner({
-    hub: new SessionHub(childBackend, bus),
+    hub,
     bus,
     projects: { resolve: async () => ({ dir, project: p }), record: async (_id, r) => void records.push(r) },
     staticServer: { file: process.execPath, args: [resolve('src/main/services/runner/static-server.ts')], env: {} },
@@ -61,7 +62,7 @@ function setup(p: Project, files: Record<string, string> = {}, timing = {}) {
     }
     throw new Error(`never reached ${status}; saw ${statuses().join(' → ')}\n${runner.logs('app').join('\n')}`)
   }
-  return { dir, bus, events, records, shots, runner, statuses, until }
+  return { dir, bus, hub, events, records, shots, runner, statuses, until }
 }
 
 const runners: Runner[] = []
@@ -77,7 +78,8 @@ async function freePort(): Promise<number> {
   return port
 }
 
-describe('runner', () => {
+// Real processes: allow what until() allows, so a busy machine doesn't fail a test at Vitest's 5 s default.
+describe('runner', { timeout: 20_000 }, () => {
   it('starts, finds the port, checks it answers, records it, takes a picture, and stops everything', async () => {
     const t = setup(project({ dev: `${NODE} dev.cjs` }))
     await t.runner.start('app')
@@ -92,7 +94,7 @@ describe('runner', () => {
     expect(t.events.some((e) => e.type === 'shot.captured')).toBe(true)
     // Every event names the session by identity, never by process.
     const started = t.events.find((e) => e.type === 'process.started')!
-    expect(started).toMatchObject({ session: { projectId: 'app', agent: 'shell' }, step: 'dev' })
+    expect(started).toMatchObject({ session: { projectId: 'app', kind: 'run' }, step: 'dev' })
     expect(JSON.stringify(started)).not.toMatch(/"pid"/)
 
     await t.runner.stop('app')
@@ -180,6 +182,32 @@ describe('runner', () => {
     await t.until('running')
     expect((await t.until('stopped')).reason).toEqual({ code: 'exited' })
   })
+
+  it('a noisy dev server (10,000 lines) never pushes status changes out of the replay; output stays in the session buffer', async () => {
+    const noisy = `${NODE} -e "for (let i = 1; i <= 10000; i++) console.log('compiling module ' + i + ' ' + 'x'.repeat(40)); const s = require('http').createServer((q, r) => r.end('ok')).listen(0, '127.0.0.1', () => console.log('Local: http://localhost:' + s.address().port + '/'))"`
+    const t = setup(project({ dev: noisy }))
+    await t.runner.start('app')
+    await t.until('running', 30_000)
+    await t.runner.stop('app')
+
+    // Live, the client saw 10,000+ output events...
+    expect(t.events.filter((e) => e.type === 'process.output').length).toBeGreaterThan(100)
+    // ...but a client that connects only now gets every status change from the replay.
+    const replay = t.bus.since(0)
+    const replayed = replay.filter((e) => e.type === 'status.changed').map((e) => (e as Extract<typeof e, { type: 'status.changed' }>).state.status)
+    expect(replayed).toEqual(t.statuses())
+    expect(replayed).toEqual(['starting', 'starting', 'checking', 'running', 'stopping', 'stopped'])
+    expect(replay.map((e) => e.type)).toEqual(expect.arrayContaining(['process.started', 'port.detected', 'process.exited', 'manifest.changed']))
+    expect(replay.some((e) => (e.type as string) === 'process.output')).toBe(false)
+
+    // Terminal content comes from the session buffer: the last 256 KB, ending with the real tail.
+    const out = t.hub.output('app:run', 0)
+    expect(out.truncated).toBe(true)
+    expect(Buffer.byteLength(out.data)).toBeLessThanOrEqual(256 * 1024)
+    expect(out.data).toContain('compiling module 10000 ')
+    expect(out.data).toMatch(/Local: http:\/\/localhost:\d+\/\r?\n$/)
+    expect(t.hub.output('app:run', out.nextOffset)).toMatchObject({ data: '', truncated: false })
+  }, 40_000)
 
   it('stops every project it started', async () => {
     const t = setup(project({ dev: `${NODE} dev.cjs` }))

@@ -1,31 +1,33 @@
-import type { RuntimeEvent, RuntimeEventInput } from '@shared/runtime'
+import type { OutputEvent, RuntimeEvent, StateEvent, StateEventInput } from '@shared/runtime'
 
 type Listener = (event: RuntimeEvent) => void
 
 /**
- * The single stream of runner and terminal activity. Services publish here;
- * transports (Electron IPC today, a network server later) subscribe. A short
- * history lets a client that connects late catch up with `since(seq)`.
+ * The single stream of runner, terminal and version activity. Services
+ * publish here; transports (Electron IPC today, a network server later)
+ * subscribe.
+ *
+ * Only state events are numbered and kept for replay. Output is broadcast
+ * live and otherwise lives in each session's own buffer, so a noisy dev
+ * server can never push a status change out of the replay window.
  */
 export class RuntimeBus {
   private seq = 0
-  private readonly history: RuntimeEvent[] = []
+  private readonly history: StateEvent[] = []
   private readonly listeners = new Set<Listener>()
 
   constructor(private readonly keep = 2000) {}
 
-  emit(input: RuntimeEventInput): RuntimeEvent {
-    const event = { ...input, seq: ++this.seq, at: new Date().toISOString() } as RuntimeEvent
+  emit(input: StateEventInput): StateEvent {
+    const event = { ...input, seq: ++this.seq, at: new Date().toISOString() } as StateEvent
     this.history.push(event)
     if (this.history.length > this.keep) this.history.splice(0, this.history.length - this.keep)
-    for (const l of this.listeners) {
-      try {
-        l(event)
-      } catch {
-        // One broken subscriber never stops the others.
-      }
-    }
+    this.broadcast(event)
     return event
+  }
+
+  emitOutput(event: Omit<OutputEvent, 'type' | 'at'>): void {
+    this.broadcast({ type: 'process.output', ...event, at: new Date().toISOString() })
   }
 
   subscribe(listener: Listener): () => void {
@@ -33,11 +35,22 @@ export class RuntimeBus {
     return () => this.listeners.delete(listener)
   }
 
-  since(seq: number): RuntimeEvent[] {
+  /** State events after `seq`, oldest first. */
+  since(seq: number): StateEvent[] {
     return this.history.filter((e) => e.seq > seq)
   }
 
   get lastSeq(): number {
     return this.seq
+  }
+
+  private broadcast(event: RuntimeEvent): void {
+    for (const l of this.listeners) {
+      try {
+        l(event)
+      } catch {
+        // One broken subscriber never stops the others.
+      }
+    }
   }
 }

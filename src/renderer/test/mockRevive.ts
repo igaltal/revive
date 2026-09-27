@@ -37,6 +37,8 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     'runner:list': () => [],
     'runner:logs': () => [],
     'shots:list': () => ({}),
+    'versions:list': () => [],
+    'trash:info': () => ({ items: 0, bytes: 0 }),
     'folder:check': (a) => {
       const path = (a as { path: string }).path
       return { ok: true, path, name: path.split('/').pop() }

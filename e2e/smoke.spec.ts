@@ -166,3 +166,78 @@ test('start a project: live preview, picture, status saved, stop, and nothing ou
   await app.close()
   expect(await listening(port2)).toBe(false)
 })
+
+test('go back to a saved version and undo it: preview hidden under dialogs, project stopped and offered back, trash emptied', async () => {
+  const { readFileSync, writeFileSync, existsSync, readdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const userData = freshUserData()
+  const folder = sampleFolder()
+  const page = join(folder, 'bakery-site/index.html')
+  const original = readFileSync(page, 'utf8')
+
+  const app = await launch(userData)
+  const win = await app.firstWindow()
+  const pageErrors: string[] = []
+  win.on('pageerror', (e) => pageErrors.push(e.message))
+  await win.getByTestId('welcome-en').click()
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, folder)
+  await win.getByTestId('folder-pick').click()
+  await win.getByTestId('scan-start').click()
+  await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+
+  // Start the bakery, then change it the way an agent might.
+  await win.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
+  await expect(win.getByTestId('status-pill')).toHaveAttribute('data-status', 'running', { timeout: 30_000 })
+  writeFileSync(page, '<h1>Changed by an agent</h1>')
+  writeFileSync(join(folder, 'bakery-site/new-page.html'), '<p>new</p>')
+  const nativeViews = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.contentView.children.length)
+  await expect.poll(nativeViews).toBe(1)
+
+  // A dialog over the preview: the native view is hidden first, a picture stands in, and it comes back after.
+  await win.getByTestId('project-versions').click()
+  await expect(win.getByTestId('versions-dialog')).toBeVisible()
+  expect(await nativeViews()).toBe(0)
+  await expect(win.getByTestId('preview-standin')).toBeVisible()
+  await win.getByTestId('versions-dialog').getByText('Close').click()
+  await expect.poll(nativeViews).toBe(1)
+
+  await win.getByTestId('project-versions').click()
+  await win.getByTestId('versions-dialog-row').first().click()
+  const dialog = win.getByTestId('restore-dialog')
+  await expect(dialog.getByTestId('restore-summary')).toHaveText("1 file will go back the way it was. 1 file made since then will move to Revive's trash.")
+  await expect(dialog).toContainText('First, Revive will stop: Sunrise Bakery.')
+  expect(await nativeViews()).toBe(0)
+  await dialog.getByTestId('restore-confirm').click()
+
+  const done = win.getByTestId('restore-done')
+  await expect(done).toContainText('2 files changed.')
+  expect(readFileSync(page, 'utf8')).toBe(original)
+  expect(existsSync(join(folder, 'bakery-site/new-page.html'))).toBe(false)
+  const trashRoot = join(folder, '.revive/trash')
+  expect(readdirSync(join(trashRoot, readdirSync(trashRoot)[0]!, 'bakery-site'))).toEqual(['new-page.html'])
+  // It was stopped for the restore, and is offered back.
+  await expect(win.getByTestId('status-pill')).not.toHaveAttribute('data-status', 'running')
+  await done.getByTestId('start-again').getByRole('button', { name: 'Start' }).click()
+  await expect(win.getByTestId('status-pill')).toHaveAttribute('data-status', 'running', { timeout: 30_000 })
+
+  // History: plain titles, newest first; Undo brings the agent's change back.
+  await win.getByTestId('nav-history').click()
+  await expect(win.getByTestId('version-title').first()).toContainText('Before going back to the version from')
+  await expect(win.getByTestId('version-title').last()).toHaveText('Before reading the folder')
+  await win.getByTestId('restore-undo').click()
+  await expect(win.getByTestId('restore-done')).toContainText('Undone.')
+  expect(readFileSync(page, 'utf8')).toBe('<h1>Changed by an agent</h1>')
+  expect(readFileSync(join(folder, 'bakery-site/new-page.html'), 'utf8')).toBe('<p>new</p>')
+
+  // Only the user empties the trash, after confirming.
+  await expect(win.getByTestId('trash')).toContainText('moved aside when going back')
+  await win.getByTestId('trash-empty').click()
+  await win.getByTestId('trash-empty-confirm').click()
+  await expect(win.getByTestId('trash')).toContainText('The trash is empty.')
+  expect(existsSync(trashRoot)).toBe(false)
+
+  expect(pageErrors).toEqual([])
+  await app.close()
+})

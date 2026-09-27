@@ -16,6 +16,7 @@ import { ptyBackend } from './services/sessions/pty-backend'
 import { Runner } from './services/runner/runner'
 import { Workspace } from './services/workspace'
 import { PreviewManager } from './services/preview/preview-manager'
+import { VersionService } from './services/versions/version-service'
 import { capturePage } from './services/preview/capture'
 import { saveShot } from './services/shots/shots'
 import { handleAssetProtocol, registerAssetScheme } from './services/shots/protocol'
@@ -103,25 +104,36 @@ void app.whenReady().then(() => {
       return png ? saveShot(await workspace.current(), projectId, png) : null
     }
   })
-  const preview = new PreviewManager(() => mainWindow, runner, bus)
+  const preview = new PreviewManager(() => mainWindow, runner, bus, async (projectId, png) => {
+    const path = await saveShot(await workspace.current(), projectId, png)
+    if (path) bus.emit({ type: 'shot.captured', projectId, path })
+  })
   handleAssetProtocol(() => workspace.projectIds())
 
   // Claude Code must prove it honours the turn limit before it may read a folder.
   const guard = new TurnLimitGuard(join(app.getPath('userData'), 'claude-guard.json'), exec, (s) => send(mainWindow, 'guard:changed', s))
-  const scans = new ScanController(
+  // eslint-disable-next-line prefer-const -- versions and scans need each other
+  let scans: ScanController
+  const versions = new VersionService({ bus, folder: () => workspace.current(), runner, scanning: () => scans.active() !== null })
+  scans = new ScanController(
     testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),
     {
       progress: (p) => send(mainWindow, 'scan:progress', p),
-      done: (d) => send(mainWindow, 'scan:done', d)
+      done: (d) => send(mainWindow, 'scan:done', d),
+      versionSaved: (v) => versions.announce(v)
     },
-    () => runner.stopAll()
+    // Nothing running, and no restore half done, while Claude reads the folder.
+    async () => {
+      await runner.stopAll()
+      await versions.whenIdle()
+    }
   )
   const guardApi = testAgent
     ? { current: (): GuardState => ({ state: 'skipped' }), recheck: async (): Promise<GuardState> => ({ state: 'skipped' }) }
     : { current: () => guard.current(), recheck: () => guard.ensure(true) }
   if (!testAgent) void shellReady.then(() => guard.ensure())
 
-  registerIpc({ settings, getWindow: () => mainWindow, shellReady, scans, workspace, runner, bus, preview, guard: guardApi })
+  registerIpc({ settings, getWindow: () => mainWindow, shellReady, scans, workspace, runner, bus, hub, preview, versions, guard: guardApi })
   createWindow(preview)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(preview)

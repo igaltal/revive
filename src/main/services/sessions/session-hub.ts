@@ -1,13 +1,15 @@
-import { sessionKey, type RunStep, type SessionKey, type SessionRef } from '@shared/runtime'
+import { sessionId, type RunStep, type SessionId, type SessionOutput, type SessionRef } from '@shared/runtime'
 import { redact } from '@shared/redact'
 import { splitLines, stripAnsi } from '@shared/ansi'
 import type { RuntimeBus } from '../runtime-bus'
 import type { SessionBackend, SessionExit, SessionHandle, SessionSpec } from './backend'
+import { OutputBuffer } from './output-buffer'
 
 const LOG_LINES = 400
 const IDLE_FLUSH_MS = 150
 const MAX_PENDING = 4096
-const SPINNER = /^[\u2800-\u28FF]+\s?/
+/** Spinner frames (npm, pnpm) are animation, not output. */
+const SPINNER = /^[⠀-⣿]+\s?/
 
 export interface StartSpec extends SessionSpec {
   step: RunStep
@@ -24,13 +26,15 @@ interface Live {
 }
 
 /**
- * Owns every terminal session by its stable identity (project + agent),
- * masks secrets in their output, keeps a short log, and publishes
- * started / output / exited on the runtime bus.
+ * Owns every terminal session by its stable identity (project + kind),
+ * masks secrets in their output, keeps each session's output in its own
+ * buffer, and publishes started / output / exited on the runtime bus.
  */
 export class SessionHub {
-  private readonly live = new Map<SessionKey, Live>()
-  private readonly logs = new Map<SessionKey, { lines: string[]; rest: string }>()
+  private readonly live = new Map<SessionId, Live>()
+  private readonly buffers = new Map<SessionId, OutputBuffer>()
+  /** Where the current "log" starts in each buffer (the runner resets it per start). */
+  private readonly marks = new Map<SessionId, number>()
 
   constructor(
     private readonly backend: SessionBackend,
@@ -39,15 +43,15 @@ export class SessionHub {
 
   /** Starts a session. A session with the same identity must have ended first. */
   start(spec: StartSpec): { handle: SessionHandle; exited: Promise<SessionExit> } {
-    const key = sessionKey(spec.ref)
-    if (this.live.has(key)) throw new Error(`Session ${key} is already running`)
+    const id = sessionId(spec.ref)
+    if (this.live.has(id)) throw new Error(`Session ${id} is already running`)
     const handle = this.backend.spawn(spec)
     // A command can carry a key inline (API_TOKEN=… npm run dev): mask it like any output.
     const display = redact(spec.display, spec.secrets)
     this.bus.emit({ type: 'process.started', session: spec.ref, step: spec.step, command: display, backend: this.backend.kind })
-    this.appendLog(key, `$ ${display}\n`)
+    this.write(spec.ref, `$ ${display}\r\n`)
 
-    // Output is masked a line at a time, so a secret is never split across two events.
+    // Output is masked a line at a time, so a secret is never split across two writes.
     let pending = ''
     let timer: NodeJS.Timeout | null = null
     const flush = () => {
@@ -56,8 +60,7 @@ export class SessionHub {
       if (!pending) return
       const data = redact(pending, spec.secrets)
       pending = ''
-      this.appendLog(key, data)
-      this.bus.emit({ type: 'process.output', session: spec.ref, data })
+      this.write(spec.ref, data)
     }
     const offData = handle.onData((chunk) => {
       pending += chunk
@@ -76,18 +79,17 @@ export class SessionHub {
       handle.onExit((exit) => {
         flush()
         offData()
-        this.flushLog(key)
-        if (this.live.get(key)?.handle === handle) this.live.delete(key)
+        if (this.live.get(id)?.handle === handle) this.live.delete(id)
         this.bus.emit({ type: 'process.exited', session: spec.ref, step: spec.step, exitCode: exit.exitCode, signal: exit.signal })
         resolve(exit)
       })
     })
-    this.live.set(key, { handle, step: spec.step, exited })
+    this.live.set(id, { handle, step: spec.step, exited })
     return { handle, exited }
   }
 
   get(ref: SessionRef): SessionHandle | undefined {
-    return this.live.get(sessionKey(ref))?.handle
+    return this.live.get(sessionId(ref))?.handle
   }
 
   list(): Array<{ ref: SessionRef; step: RunStep }> {
@@ -95,7 +97,7 @@ export class SessionHub {
   }
 
   async kill(ref: SessionRef): Promise<void> {
-    const l = this.live.get(sessionKey(ref))
+    const l = this.live.get(sessionId(ref))
     if (!l) return
     await l.handle.kill()
     await l.exited
@@ -105,32 +107,37 @@ export class SessionHub {
     await Promise.all([...this.live.values()].map((l) => l.handle.kill().then(() => l.exited)))
   }
 
-  /** Recent output, masked, without colour codes. */
+  /** Raw output (masked, with colour codes) after `fromOffset`, for terminals and late clients. */
+  output(id: SessionId, fromOffset: number): SessionOutput {
+    const buffer = this.buffers.get(id)
+    if (!buffer) return { sessionId: id, data: '', fromOffset: 0, nextOffset: 0, truncated: false }
+    return { sessionId: id, ...buffer.read(fromOffset) }
+  }
+
+  /** Readable output since the last `clearLog`: masked, without colour codes or spinners. */
   log(ref: SessionRef): string[] {
-    const l = this.logs.get(sessionKey(ref))
-    if (!l) return []
-    return l.rest.trim() ? [...l.lines, stripAnsi(l.rest)] : [...l.lines]
+    const id = sessionId(ref)
+    const buffer = this.buffers.get(id)
+    if (!buffer) return []
+    const { data } = buffer.read(this.marks.get(id) ?? 0)
+    const { lines, rest } = splitLines('', stripAnsi(data))
+    return [...lines, rest]
+      .map((l) => l.replace(SPINNER, ''))
+      .filter((l) => l.trim().length > 0)
+      .slice(-LOG_LINES)
   }
 
+  /** Starts a fresh log (the buffer itself, and its offsets, carry on). */
   clearLog(ref: SessionRef): void {
-    this.logs.delete(sessionKey(ref))
+    const id = sessionId(ref)
+    this.marks.set(id, this.buffers.get(id)?.endOffset ?? 0)
   }
 
-  private appendLog(key: SessionKey, text: string): void {
-    const l = this.logs.get(key) ?? { lines: [], rest: '' }
-    const split = splitLines(l.rest, stripAnsi(text))
-    // Spinner frames (npm, pnpm) are animation, not output.
-    l.lines.push(...split.lines.map((line) => line.replace(SPINNER, '')).filter((line) => line.trim().length > 0))
-    if (l.lines.length > LOG_LINES) l.lines.splice(0, l.lines.length - LOG_LINES)
-    l.rest = split.rest
-    this.logs.set(key, l)
-  }
-
-  private flushLog(key: SessionKey): void {
-    const l = this.logs.get(key)
-    if (l?.rest.trim()) {
-      l.lines.push(l.rest)
-      l.rest = ''
-    }
+  private write(ref: SessionRef, data: string): void {
+    const id = sessionId(ref)
+    let buffer = this.buffers.get(id)
+    if (!buffer) this.buffers.set(id, (buffer = new OutputBuffer()))
+    const offset = buffer.append(data)
+    this.bus.emitOutput({ session: ref, data, offset })
   }
 }

@@ -89,8 +89,34 @@
   },
   "history": {
     "subtitle": "Every saved version, so you can always go back.",
-    "placeholder": "Saved versions will be listed here, each with a plain title and a time.",
-    "keysNote": "Keys are never included in saved versions."
+    "keysNote": "Keys are never included in saved versions.",
+    "saveNow": "Save a version now",
+    "empty": "No saved versions yet. Revive saves one before every reading of the folder and before every go back.",
+    "when": "{date, date, medium}, {date, time, short}",
+    "title": {
+      "restore": "Before going back to the version from {date, date, medium}, {date, time, short}",
+      "restoreUnknown": "Before going back to an earlier version",
+      "undo": "Before undoing a go back"
+    },
+    "restoreDialog": {
+      "title": "Go back to the version from {date, date, medium}, {date, time, short}?",
+      "changed": "{count, plural, =0 {No files need to change.} one {# file will go back the way it was.} other {# files will go back the way they were.}}",
+      "newFiles": "{count, plural, one {# file made since then will move to Revive's trash.} other {# files made since then will move to Revive's trash.}}",
+      "willStop": "First, Revive will stop: {names}.",
+      "safe": "Revive saves the folder as it is now first, so you can undo this. Keys are never changed.",
+      "loading": "Checking what will change…",
+      "files": "Files that will change"
+    },
+    "done": "Went back to the version from {date, date, medium}, {date, time, short}. {count, plural, =0 {No files changed.} one {# file changed.} other {# files changed.}}",
+    "doneUnknown": "Went back to an earlier version. {count, plural, =0 {No files changed.} one {# file changed.} other {# files changed.}}",
+    "undone": "Undone. The folder is back the way it was. {count, plural, =0 {No files changed.} one {# file changed.} other {# files changed.}}",
+    "undo": "Undo",
+    "startAgain": "{name} was running before. Start it again?",
+    "problem": {
+      "busy": "Revive is reading the folder right now. Try again when it's done.",
+      "not_found": "That saved version isn't there any more.",
+      "failed": "Revive couldn't save the folder first, so it didn't go back. Nothing was changed."
+    }
   },
   "technical": {
     "command": "Command",
@@ -114,7 +140,9 @@
     "notNow": "Not now",
     "openOfficialPage": "Open the official page",
     "checking": "Checking…",
-    "step": "Step {current} of {total}"
+    "step": "Step {current} of {total}",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "prereq": {
     "title": "Let's check your computer",
@@ -246,7 +274,10 @@
     "keysNone": "This project doesn't need any keys.",
     "keyNeeded": "Needed",
     "keyOptional": "Optional",
-    "pictureNote": "The picture from the last time it opened."
+    "pictureNote": "The picture from the last time it opened.",
+    "versions": "Go back to an earlier version",
+    "versionsTitle": "Saved versions",
+    "versionsNote": "A saved version holds the whole folder, with every project in it."
   },
   "guard": {
     "title": "Revive can't safely use this version of Claude Code",
@@ -292,5 +323,16 @@
     "phone": "Phone",
     "reload": "Reload",
     "openInBrowser": "Open in browser"
+  },
+  "trash": {
+    "title": "Revive's trash",
+    "none": "The trash is empty.",
+    "body": "{items, plural, one {# file} other {# files}} moved aside when going back ({size}).",
+    "empty": "Empty the trash",
+    "confirm": {
+      "title": "Empty the trash?",
+      "body": "{items, plural, one {# file} other {# files}} will be deleted for good. This can't be undone.",
+      "keep": "Keep them"
+    }
   }
 }
