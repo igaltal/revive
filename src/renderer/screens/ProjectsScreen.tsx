@@ -81,8 +81,8 @@ function Gallery({ manifest, folder, onOpenProject }: { manifest: Manifest; fold
   }
   return (
     <div className="flex flex-col gap-6">
-      {/* 4 columns from 1280px, 3 from 960px, 2 below. */}
-      <div data-testid="gallery" className="grid grid-cols-2 gap-5 min-[960px]:grid-cols-3 min-[1280px]:grid-cols-4">
+      {/* 4 columns from 1280px, 3 from 960px, 2 from 640px, 1 on a phone. */}
+      <div data-testid="gallery" className="grid grid-cols-1 gap-5 min-[640px]:grid-cols-2 min-[960px]:grid-cols-3 min-[1280px]:grid-cols-4">
         {manifest.projects.map((p) => {
           const run = runs[p.id]
           const status = displayStatus(p, run)

@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen)
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen) · [x] M9 (browser client, phone PWA)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -639,3 +639,108 @@ Built to `docs/HOST_PRD.md` H2 (persistent sessions) and H3 (a terminal per fold
 - **Not tested for real:** a sleeping Mac with a session running, and a remote device resizing from a real second screen (the protocol path is tested; the second screen isn't).
 
 *Try it:* `npm run dev` → a project → Open a terminal here → Terminal (or Claude Code). Quit Revive, open it again, and the same terminal is still there with its history. `tmux -L revive ls` lists Revive's sessions; your own `tmux ls` never shows them. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M9: done (2026-09-28): the browser client and the phone PWA
+
+Built to `docs/HOST_PRD.md` H7 and "Security and privacy". The Home screen, scenes and screensavers are M10.
+
+**0. Follow-up from M8: check the agent before a session** (committed separately, `2afa0ed`)
+- `sessions:open` for Claude Code or Codex first runs `<cli> --version`. If that fails, the answer is `not_installed`.
+  - **Claude:** a definite "not signed in" gives `signed_out`. "Unknown" doesn't block.
+  - **Codex:** `codex login status` must succeed.
+- On a problem, no session starts. The answer is `{ ok: false, kind, problem }` and the project page shows one sentence plus the step:
+  - Claude signed out → **Sign in**;
+  - not installed → the official install page;
+  - Codex signed out → `codex login`.
+- In client mode, the sentence names the Host ("…on Studio Mac"). The check always runs on the Host, because that's where `sessions:open` runs.
+
+**1. The web build, served by the Host**
+- **A second Vite target:** `vite.web.config.ts` builds `src/renderer/web.html` into `out/web`. It uses the same screens, contract and i18n; `npm run build` now builds both.
+- **`BrowserTransport`** extends the M6 `WsTransport` and speaks the same protocol. It connects to `wss://<page host>/ws` with no token, because the cookie authenticates.
+  - What stays on the phone: its own UI language and detail level (`localStorage`, not the Host's settings) and the connection status.
+  - Host-only features answer `not_available`, and `capabilities()` hides them: the live preview (a "Preview runs on <Host>" note instead), the folder dialog, and the Host and pairing controls.
+- **Serving:** `GET` on the Host's port serves the app, path-locked to `out/web`. It refuses `..`, dotfiles and symlinks out of the folder, and unknown paths fall back to the app.
+  - Headers: a strict CSP (`default-src 'self'`, `connect-src 'self'`, no inline script, `frame-ancestors 'none'`), `nosniff`, `no-referrer`.
+  - `/assets` is served immutable; everything else `no-cache`. Shots are served `no-store`, behind the device token as before.
+- **Still `127.0.0.1` only.** The phone reaches it through `tailscale serve`, so the address is HTTPS.
+- **Origin check:** a browser request passes only from exactly `https://<the Host's tailnet name>` or the Host's own loopback origin. No Origin at all is the desktop client, which still needs its token. Everything else is refused (403), `/pair` included.
+
+**2. Pairing and auth in the browser**
+- **Same flow as the desktop:** the six-digit code, then "Allow <device>?" on the Host. The device name is guessed from the phone ("iPhone", "Android phone") and can be edited.
+- **The cookie:** when the Host approves, the poll answer sets `revive_device` as `HttpOnly; Secure; SameSite=Strict; Path=/`. The token never appears in the response body, in `localStorage`, or anywhere a page script can read it.
+  - The desktop client still receives its token in the body and keeps it in safeStorage. The Host still keeps only the hash.
+- **The WebSocket accepts the cookie only together with an allowed Origin.** A cookie without an Origin is refused, so another program can't replay it without also looking like this page.
+- **The `?token=` URL form is gone.** Tokens come only from the `Authorization` header or the cookie, so they can't end up in logs or history.
+- **Revoke:** closes the phone's socket (4401) at once. The page then shows "This device was signed out from <Host>" and the pairing screen. Its next request clears the dead cookie.
+- **Sign out on the phone:** `POST /logout` revokes the device and clears the cookie.
+
+**3. PWA**
+- **Manifest and icons:** 192, 512, maskable 512 and the Apple touch icon, plus Apple web-app meta tags and `viewport-fit=cover`. It installs from the tailscale https address.
+- **The service worker is generated at build time from the bundle's file list.** It caches exactly the shell: `/`, the manifest, the icons and the hashed `/assets`.
+  - Navigations: network first, with the cached shell only as the offline fallback.
+  - **Everything else goes to the network and is never cached:** the API, the WebSocket, shots, pairing and terminal output.
+  - Each build gets a new cache name, and old ones are deleted.
+- **Offline or Host unreachable:** "Revive can't reach <last Host name>", with what to check and **Try again**. The Host name is the only thing remembered, not a blank page.
+
+**4. Phone layouts** (under 640 px, logical properties only, Hebrew and English)
+- **Header:** the sidebar becomes a top bar, with the nav as one row.
+- **Gallery:** one column.
+- **Project page:** stacked.
+- **History:** full-width rows.
+- **Dialogs** sit at the bottom. Nothing is wider than the screen at 390 px (tested in both languages).
+- **Terminal on a phone** (a touch screen, or under 768 px): xterm.js plus a key row: **Esc, Tab, Ctrl, ← ↑ ↓ →, ⏎, A−, A+**.
+  - **Ctrl** stays pressed (highlighted) until the next character typed, from the key row or the keyboard: Ctrl then "c" sends `\x03`.
+  - **Arrows follow the terminal's cursor mode** (`ESC [ A`, or `ESC O A` in application mode, as vim and some prompts use).
+  - Tapping keeps the keyboard open. The row moves up above the iOS keyboard (visualViewport).
+  - **Font size:** A−/A+ or a pinch, 9–24 px, remembered on the phone.
+
+**5. Tests.** 239 regular plus 5 real-tmux unit tests, plus 11 e2e tests (8 earlier ones and 3 new).
+- **Chromium phone** (390×844, touch, against the real built Host):
+  1. Pair in the browser, then approve in the Host window.
+  2. The gallery is one column with no sideways scroll.
+  3. **The cookie is HttpOnly, Secure and Strict, and it's in neither `document.cookie` nor storage.**
+  4. Run the project; the preview is replaced by the note.
+  5. Open a terminal and type. **Tapping Esc, Tab and the four arrows shows exactly those bytes in `cat -vt`.** Ctrl then "d" ends `cat`; A+ makes the text bigger.
+  6. **The service worker cache holds only shell paths:** none for shots, pair, whoami, logout or the WebSocket.
+  7. Revoke on the Host: signed out within 3 s, and the cookie is gone after the reload.
+  8. A second phone, then the Host quits: the offline screen with the Host's name and Try again.
+- **Chromium phone in Hebrew:** RTL, and nothing wider than the screen on all three pages. The Host window stays in English.
+- **WebKit, iPhone 15** (393×659), **over https** through a local TLS proxy standing in for `tailscale serve`:
+  - pair, approve, cookie flags, no overflow;
+  - **nothing covers the key row** (checked with `elementFromPoint`);
+  - the key taps reach `cat -vt`;
+  - revoke signs it out.
+- **Server tests** (`web-client.test.ts`):
+  - cookie flags and no token in the body;
+  - the cookie on the WebSocket only from the Host's own origin (403 for a foreign or `null` Origin, 401 with no Origin);
+  - **a foreign Origin refused on `/pair`, `/`, `/whoami` and the WebSocket;**
+  - revoke and logout clear the cookie;
+  - CSP and cache headers, no dotfiles or path traversal, shots still need the token.
+- **Unit tests:**
+  - the key row's sequences (both cursor modes, Ctrl on letters and symbols, font limits);
+  - browser pairing never touches a token;
+  - the offline screen;
+  - **the missing-CLI check** (not installed, signed out, "unknown" doesn't block, and the one-sentence messages on the project page, in client mode too).
+
+**Found and fixed along the way**
+- **On an iPhone-sized screen, the terminal overflowed its box** and the Technical details button sat on top of the key row, so taps went to the wrong button. Only the WebKit test caught this. On phones the terminal now has a fixed height (55% of the screen), and the page scrolls.
+- **Hebrew nav labels wrapped onto two lines** on phones; they now stay on one line.
+
+**What I could and could not test on a real phone**
+- **No real iPhone or Android device was available here.** Everything above ran in Playwright's phone emulation:
+  - Chromium with a mobile viewport and touch;
+  - Playwright's own WebKit build (the engine Safari uses) with the iPhone 15 profile.
+- **Not tested for real:**
+  - **Installing to the home screen** (iOS "Add to Home Screen", Android's install prompt). The manifest and icons are checked, the install itself isn't.
+  - **A real `tailscale serve` certificate and tailnet name.** A self-signed local proxy stood in, because running `tailscale serve` changes your tailnet config, and that needs your OK.
+  - **The real iOS and Android keyboards:** whether the key row sits exactly above them (visualViewport is emulated, not the real keyboard), autocorrect and capitalisation in the terminal, and pinch zoom with real fingers.
+  - **The service-worker test runs in Chromium only.** Playwright's WebKit can't inspect service workers. The offline screen itself is tested in Chromium.
+  - **Safari's own quirks** beyond the engine: storage eviction for home-screen apps, and backgrounding a PWA while a terminal is open.
+- **The Secure cookie needs https.** Over plain http it only works on `localhost` in Chromium (which is how the Chromium test runs), so real phones must use the tailscale https address, as intended.
+
+**Notes for you**
+- **Packaging** must include `out/web` (as well as `resources/tmux.conf` and the menu bar icons).
+- `REVIVE_TEST_PUBLIC_HOST` adds a public host name for the https test. It's honoured only in unpackaged builds.
+- Playwright's WebKit browser was installed into Playwright's own cache (`npx playwright install webkit`); nothing system-wide.
+
+*Try it on your phone:* turn on sharing in Settings, then use the Tailscale button there (it shows the exact `tailscale serve --bg <port>` command and runs it only after you confirm). Open `https://<your Mac>.<tailnet>.ts.net` on the phone, and enter the code. Then Share → Add to Home Screen. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.

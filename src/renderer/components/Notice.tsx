@@ -25,7 +25,7 @@ export function Notice({
   testId?: string
 }): ReactNode {
   return (
-    <div data-testid={testId} className={cx('flex flex-col gap-3 rounded-[12px] border p-5', tones[tone])}>
+    <div data-testid={testId} className={cx('flex flex-col gap-3 rounded-[12px] border p-5 max-[639px]:p-4', tones[tone])}>
       {title ? <h3 className="font-sans text-[17px] font-semibold text-ink">{title}</h3> : null}
       {children ? <div className="flex flex-col gap-3 text-[15px] leading-relaxed text-ink/85">{children}</div> : null}
       {actions ? <div className="flex flex-wrap gap-2 pt-1">{actions}</div> : null}

@@ -68,7 +68,7 @@ export function TerminalScreen({ projectId, sessionId, onBack }: { projectId: st
   const current = tabs.find((s) => s.sessionId === active) ?? tabs[0] ?? null
 
   return (
-    <div className="flex h-full flex-col gap-4" data-testid="terminal-screen">
+    <div className="flex h-full flex-col gap-4 max-[639px]:h-auto" data-testid="terminal-screen">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button type="button" onClick={onBack} className="inline-flex w-fit items-center gap-1 text-sm text-muted hover:text-ink" data-testid="terminal-back">
           <ChevronBack />
@@ -106,7 +106,7 @@ export function TerminalScreen({ projectId, sessionId, onBack }: { projectId: st
         ))}
       </div>
 
-      <div className="min-h-0 flex-1">{current ? <TerminalView key={current.sessionId} sessionId={current.sessionId} /> : <p className="text-muted">{tx('terminal.empty')}</p>}</div>
+      <div className="min-h-0 flex-1 max-[639px]:flex-none">{current ? <TerminalView key={current.sessionId} sessionId={current.sessionId} /> : <p className="text-muted">{tx('terminal.empty')}</p>}</div>
 
       <TechnicalDetails>
         {current ? <LtrBlock label={t('terminal.session')}>{current.sessionId}</LtrBlock> : null}

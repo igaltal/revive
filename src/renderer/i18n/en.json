@@ -1,4 +1,22 @@
 {
+  "terminalKeys": {
+    "label": "Keys",
+    "smaller": "Smaller text",
+    "larger": "Larger text"
+  },
+  "web": {
+    "pair": {
+      "title": "Connect this device to Revive",
+      "body": "On the computer that runs Revive, open Settings, turn on sharing, choose Pair a device, and type the code shown there. You'll be asked to allow it there."
+    },
+    "signedOut": "This device was signed out from {host}. Pair it again to continue.",
+    "signedOutUnknown": "This device was signed out. Pair it again to continue.",
+    "offline": {
+      "title": "Revive can't reach {host}",
+      "titleUnknown": "Revive can't reach the computer that runs it",
+      "body": "Check that it's on and awake, and that this device is on your private network (Tailscale). Then try again."
+    }
+  },
   "app": {
     "name": "Revive",
     "tagline": "A calm home for everything you build with AI"

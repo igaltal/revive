@@ -13,7 +13,8 @@ export type SubmitResult = { ok: true; requestId: string } | { ok: false; reason
 
 export type PollResult =
   | { state: 'pending' }
-  | { state: 'approved'; deviceId: string; token: string }
+  /** `browser`: the token must go into an HttpOnly cookie, never into the page. */
+  | { state: 'approved'; deviceId: string; token: string; browser: boolean }
   | { state: 'denied' }
   | { state: 'expired' }
   | { state: 'unknown' }
@@ -22,6 +23,8 @@ interface Request {
   id: string
   deviceName: string
   at: number
+  /** Asked from a web page: the token is set as a cookie, never shown to the page. */
+  browser: boolean
   state: 'pending' | 'approved' | 'denied'
   /** Handed to the device once, on its next poll, then forgotten. */
   issued?: { deviceId: string; token: string }
@@ -76,7 +79,7 @@ export class Pairing {
     return this.lockedUntil > this.now() ? this.lockedUntil : null
   }
 
-  submit(code: string, deviceName: string): SubmitResult {
+  submit(code: string, deviceName: string, opts: { browser?: boolean } = {}): SubmitResult {
     const now = this.now()
     if (this.lockedUntil > now) return { ok: false, reason: 'locked' }
     if (!this.code) return this.wrongTry('no_pairing')
@@ -91,7 +94,7 @@ export class Pairing {
     // Right code: it's used up, whatever the Host answers.
     this.code = null
     this.wrong = 0
-    const request: Request = { id: randomUUID(), deviceName: cleanName(deviceName), at: now, state: 'pending' }
+    const request: Request = { id: randomUUID(), deviceName: cleanName(deviceName), at: now, state: 'pending', browser: opts.browser === true }
     this.requests.set(request.id, request)
     this.onChange()
     return { ok: true, requestId: request.id }
@@ -133,7 +136,7 @@ export class Pairing {
     }
     this.requests.delete(requestId)
     if (r.state === 'denied' || !r.issued) return { state: 'denied' }
-    return { state: 'approved', ...r.issued }
+    return { state: 'approved', ...r.issued, browser: r.browser }
   }
 
   private wrongTry(reason: 'bad_code' | 'no_pairing'): SubmitResult {

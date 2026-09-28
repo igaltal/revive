@@ -223,7 +223,10 @@ void app.whenReady().then(async () => {
         updateTray(on)
       }
     },
-    checkOutputs
+    checkOutputs,
+    webRoot: join(import.meta.dirname, '../web'),
+    // Tests only (unpackaged): the https stand-in for `tailscale serve` in the WebKit test.
+    extraPublicHosts: dev && process.env['REVIVE_TEST_PUBLIC_HOST'] ? [process.env['REVIVE_TEST_PUBLIC_HOST']] : []
   })
   router = new AppRouter(out, c, logged, withActionLog(createAppHandlers(host, client), log), client)
   const r = router

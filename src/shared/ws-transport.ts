@@ -8,7 +8,8 @@ export interface WsTransportOptions {
   url: string
   /** http://127.0.0.1:<port>, for assets. */
   httpUrl: string
-  token: string
+  /** The desktop client's device token. A browser page has none: its HttpOnly cookie goes with every request. */
+  token?: string
   /** Defaults to the global WebSocket (browsers, Node 22+). */
   WebSocket?: typeof WebSocket
   retry?: { minMs: number; maxMs: number }
@@ -100,9 +101,9 @@ export class WsTransport extends BaseTransport {
     return capabilitiesFor('ws')
   }
 
+  /** Pictures: in a browser the cookie goes along; the desktop client fetches them itself with its token. */
   assetUrl(path: string): string {
-    const p = path.startsWith('/') ? path : `/${path}`
-    return `${this.opts.httpUrl}${p}${p.includes('?') ? '&' : '?'}token=${encodeURIComponent(this.opts.token)}`
+    return `${this.opts.httpUrl}${path.startsWith('/') ? path : `/${path}`}`
   }
 
   protected call(method: MethodName, input: unknown): Promise<unknown> {
@@ -151,7 +152,7 @@ export class WsTransport extends BaseTransport {
 
   private open(): void {
     const Impl = this.opts.WebSocket ?? globalThis.WebSocket
-    const ws = new Impl(this.opts.url, [WS_PROTOCOL, `${WS_TOKEN_PREFIX}${this.opts.token}`])
+    const ws = new Impl(this.opts.url, this.opts.token ? [WS_PROTOCOL, `${WS_TOKEN_PREFIX}${this.opts.token}`] : [WS_PROTOCOL])
     ws.binaryType = 'arraybuffer'
     this.socket = ws
 
@@ -256,7 +257,11 @@ export class WsTransport extends BaseTransport {
   /** false only when the Host answered and said this token is no good. */
   private async stillAllowed(): Promise<boolean | null> {
     try {
-      const res = await fetch(`${this.opts.httpUrl}/whoami`, { headers: { authorization: `Bearer ${this.opts.token}` }, signal: AbortSignal.timeout(3000) })
+      const res = await fetch(`${this.opts.httpUrl}/whoami`, {
+        headers: this.opts.token ? { authorization: `Bearer ${this.opts.token}` } : {},
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout(3000)
+      })
       return res.status === 401 ? false : true
     } catch {
       return null

@@ -9,15 +9,16 @@
   "scripts": {
     "dev": "electron-vite dev",
     "prebuild": "npm run typecheck && npm run test",
-    "build": "electron-vite build",
+    "build": "electron-vite build && npm run build:web",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "test": "vitest run --exclude \"**/*.live.test.ts\" --exclude \"**/*.pty.test.ts\" && npm run test:pty",
-    "test:e2e": "electron-vite build && playwright test",
+    "test:e2e": "electron-vite build && npm run build:web && playwright test",
     "postinstall": "electron-rebuild -f -w node-pty",
     "test:live": "vitest run src/main/scanner/turn-limit.live.test.ts",
-    "test:pty": "ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.pty.config.ts"
+    "test:pty": "ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.pty.config.ts",
+    "build:web": "vite build --config vite.web.config.ts"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",

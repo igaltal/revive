@@ -54,6 +54,10 @@ export class HostService {
       log: ActionLog
       platform: HostPlatform
       checkOutputs: boolean
+      /** The built web app for browsers and phones (out/web). */
+      webRoot?: string
+      /** Tests only: a name the Host is reached by besides the tailnet's (a stand-in for tailscale serve). */
+      extraPublicHosts?: string[]
     }
   ) {
     this.devices = new DeviceRegistry(join(opts.userData, 'devices.json'))
@@ -176,10 +180,11 @@ export class HostService {
         pairing: this.pairing,
         hostName: this.opts.platform.hostName,
         assets: () => core.workspace.projectIds(),
-        publicHosts: () => (this.tailnetName ? [this.tailnetName] : []),
+        publicHosts: () => [...(this.tailnetName ? [this.tailnetName] : []), ...(this.opts.extraPublicHosts ?? [])],
         port,
         checkOutputs: this.opts.checkOutputs,
-        onDevicesChanged: () => this.emit()
+        onDevicesChanged: () => this.emit(),
+        webRoot: this.opts.webRoot
       })
     // The same port as last time, so `tailscale serve` and paired devices keep working after a restart.
     this.server = await make(this.saved.port ?? undefined).catch(() => make(undefined))

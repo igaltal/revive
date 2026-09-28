@@ -61,9 +61,9 @@ function Screens(): ReactNode {
   const sidebarRoute: Route = route.name === 'history' || route.name === 'settings' ? route.name : 'projects'
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full max-[639px]:flex-col">
       <Sidebar route={sidebarRoute} onNavigate={(name) => setRoute({ name })} />
-      <main ref={scrollRoot} data-scroll-root className="min-w-0 flex-1 overflow-y-auto px-12 py-10">
+      <main ref={scrollRoot} data-scroll-root className="min-w-0 flex-1 overflow-y-auto px-12 py-10 max-[639px]:px-4 max-[639px]:py-5">
         {route.name === 'projects' && (
           <ProjectsScreen
             onChangeFolder={() => setRoute({ name: 'folder' })}

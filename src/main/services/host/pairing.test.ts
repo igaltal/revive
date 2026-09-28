@@ -64,6 +64,7 @@ describe('pairing', () => {
     const first = t.pairing.poll(r.requestId)
     if (first.state !== 'approved') throw new Error(first.state)
     expect(t.devices.verify(first.token)?.name).toBe("Noa's laptop")
+    expect(first.browser).toBe(false)
     expect(t.pairing.poll(r.requestId)).toEqual({ state: 'unknown' })
     // The Host keeps only a hash of the token.
     expect(readFileSync(t.file, 'utf8')).not.toContain(first.token)

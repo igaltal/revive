@@ -84,7 +84,7 @@ export function ProjectScreen({ projectId, onBack, onOpenTerminal }: { projectId
 
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-4xl leading-tight text-ink">
+          <h1 className="text-4xl leading-tight text-ink max-[639px]:text-3xl">
             <bdi>{project.name}</bdi>
           </h1>
           <StatusPill status={status} />

@@ -41,7 +41,7 @@ export function HistoryScreen(): ReactNode {
       {versions && versions.length > 0 ? (
         <ol className="divide-y divide-border rounded-[12px] border border-border bg-card" data-testid="versions">
           {versions.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4" data-testid="version-row" data-kind={v.kind}>
+            <li key={v.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 max-[639px]:gap-3 max-[639px]:px-4" data-testid="version-row" data-kind={v.kind}>
               <div className="flex min-w-0 items-start gap-3">
                 <span className="mt-0.5 text-muted">{v.kind === 'restore' || v.kind === 'undo' ? <UndoIcon /> : <ClockIcon />}</span>
                 <div className="flex flex-col gap-0.5">
@@ -51,7 +51,7 @@ export function HistoryScreen(): ReactNode {
                   <span className="text-sm text-muted">{tx('history.when', { date: new Date(v.createdAt) })}</span>
                 </div>
               </div>
-              <Button variant="secondary" data-testid="version-restore" onClick={() => setChosen(v)}>
+              <Button variant="secondary" className="max-[639px]:w-full" data-testid="version-restore" onClick={() => setChosen(v)}>
                 {tx('vocab.goBackToThisVersion')}
               </Button>
             </li>

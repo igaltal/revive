@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { readFile } from 'node:fs/promises'
+import { existsSync, realpathSync, statSync } from 'node:fs'
+import { basename, extname, join, sep } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { SERVER_STREAMS } from '@shared/contract-names'
@@ -52,6 +54,67 @@ interface Conn {
   alive: boolean
 }
 
+/** The browser's device cookie. HttpOnly, so no page script can read it. */
+export const COOKIE = 'revive_device'
+const COOKIE_MAX_AGE = 400 * 24 * 60 * 60
+
+function cookieToken(req: IncomingMessage): string | null {
+  for (const part of String(req.headers.cookie ?? '').split(';')) {
+    const [k, ...v] = part.trim().split('=')
+    if (k === COOKIE) return v.join('=') || null
+  }
+  return null
+}
+
+const TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ico': 'image/x-icon'
+}
+
+/** The page may load only its own files and talk only to this Host. */
+const WEB_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
+/** Serves a file of the web app, or its page for app routes. False if the path isn't the web app's. */
+async function serveWeb(root: string, pathname: string, res: ServerResponse): Promise<boolean> {
+  let rel: string
+  try {
+    rel = decodeURIComponent(pathname)
+  } catch {
+    return false
+  }
+  const parts = rel.split('/').filter(Boolean)
+  if (parts.some((p) => p === '..' || p.startsWith('.') || p.includes('\\') || p.includes('\0'))) return false
+  let file = parts.length ? join(root, ...parts) : join(root, 'web.html')
+  if (!existsSync(file) || !statSync(file).isFile()) {
+    // App routes (no extension) get the page; anything else isn't the web app's.
+    if (extname(rel)) return false
+    file = join(root, 'web.html')
+  }
+  const real = realpathSync(file)
+  if (!real.startsWith(realpathSync(root) + sep)) return false
+  const ext = extname(real)
+  const immutable = parts[0] === 'assets'
+  res.writeHead(200, {
+    'content-type': TYPES[ext] ?? 'application/octet-stream',
+    // Hashed assets never change; the page, the manifest and the service worker must always be fresh.
+    'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'content-security-policy': WEB_CSP,
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    ...(basename(real) === 'sw.js' ? { 'service-worker-allowed': '/' } : {})
+  })
+  res.end(await readFile(real))
+  return true
+}
+
 const errorCode = (e: unknown) => (e instanceof ContractError ? e.code : 'failed')
 
 async function readJson(req: IncomingMessage, limit = 4096): Promise<unknown> {
@@ -84,6 +147,8 @@ export async function startHostServer(opts: {
   port?: number
   checkOutputs: boolean
   onDevicesChanged?: () => void
+  /** The built web app (out/web), served to browsers and phones. */
+  webRoot?: string
 }): Promise<HostServer> {
   const conns = new Set<Conn>()
   const sink = hubSink(opts.hub)
@@ -91,22 +156,27 @@ export async function startHostServer(opts: {
 
   const hosts = () => [`127.0.0.1:${port}`, `localhost:${port}`, ...(opts.publicHosts?.() ?? []).flatMap((h) => [h, `${h}:443`])]
   const hostOk = (req: IncomingMessage) => hosts().includes(req.headers.host ?? '')
-  // Browsers always send Origin. Only this Host's own pages may connect (the web client, later);
-  // programs that aren't browsers send none, and still need a device token.
+  // Browsers always send Origin. Only pages this Host serves (its web app, on its own origins) may
+  // connect; programs that aren't browsers (the desktop client) send none, and still need a device token.
   const originOk = (req: IncomingMessage) => {
     const origin = req.headers.origin
     if (origin === undefined) return true
     return origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}` || (opts.publicHosts?.() ?? []).some((h) => origin === `https://${h}`)
   }
+  /** A device token: the desktop client's header, or a browser's HttpOnly cookie. Never from a URL. */
   const tokenFrom = (req: IncomingMessage): string | null => {
     const auth = req.headers.authorization
     if (auth?.startsWith('Bearer ')) return auth.slice(7)
-    return new URL(req.url ?? '/', 'http://x').searchParams.get('token')
+    return cookieToken(req)
   }
   const deviceFor = (token: string | null) => (token ? opts.devices.verify(token) : null)
+  /** The browser's device token: HttpOnly (no page script sees it), Secure, sent only to this origin. */
+  const secureCookie = (token: string) => `${COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${COOKIE_MAX_AGE}`
+  const clearCookie = `${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
 
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    const json = (status: number, body: unknown) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(body))
+    const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+      res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers }).end(JSON.stringify(body))
     void (async () => {
       if (!hostOk(req) || !originOk(req)) return json(403, { error: 'forbidden' })
       const url = new URL(req.url ?? '/', 'http://x')
@@ -119,23 +189,42 @@ export async function startHostServer(opts: {
         } catch {
           return json(400, { error: 'bad_request' })
         }
-        const r = opts.pairing.submit(String(body.code ?? ''), String(body.deviceName ?? ''))
+        // A request with an Origin comes from a web page: its token will be a cookie, never shown to it.
+        const r = opts.pairing.submit(String(body.code ?? ''), String(body.deviceName ?? ''), { browser: req.headers.origin !== undefined })
         return r.ok ? json(202, { requestId: r.requestId, hostName: opts.hostName }) : json(r.reason === 'locked' ? 429 : 403, { error: r.reason })
       }
       const poll = /^\/pair\/([0-9a-f-]{36})$/.exec(url.pathname)
       if (poll && req.method === 'GET') {
         const r = opts.pairing.poll(poll[1]!)
-        if (r.state === 'approved') opts.onDevicesChanged?.()
-        return json(200, r.state === 'approved' ? { state: r.state, deviceId: r.deviceId, token: r.token, hostName: opts.hostName } : r)
+        if (r.state !== 'approved') return json(200, r)
+        opts.onDevicesChanged?.()
+        if (r.browser) return json(200, { state: r.state, deviceId: r.deviceId, hostName: opts.hostName }, { 'set-cookie': secureCookie(r.token) })
+        return json(200, { state: r.state, deviceId: r.deviceId, token: r.token, hostName: opts.hostName })
       }
 
-      const device = deviceFor(tokenFrom(req))
-      if (!device) return json(401, { error: 'unauthorized' })
-      if (url.pathname === '/whoami') return json(200, { deviceId: device.id, hostName: opts.hostName })
+      // The web app itself: public files (no data in them), path-locked.
+      if (opts.webRoot && req.method === 'GET' && !url.pathname.startsWith('/shots/') && url.pathname !== '/whoami') {
+        const served = await serveWeb(opts.webRoot, url.pathname, res)
+        if (served) return
+      }
+
+      const token = tokenFrom(req)
+      const device = deviceFor(token)
+      if (url.pathname === '/logout' && req.method === 'POST') {
+        // Signing out a browser ends its device: the cookie can't be used again.
+        if (device) {
+          opts.devices.revoke(device.id)
+          opts.onDevicesChanged?.()
+        }
+        return json(200, { ok: true }, { 'set-cookie': clearCookie })
+      }
+      // A dead cookie (revoked) is removed from the browser along the way.
+      if (!device) return json(401, { error: 'unauthorized' }, cookieToken(req) ? { 'set-cookie': clearCookie } : {})
+      if (url.pathname === '/whoami') return json(200, { deviceId: device.id, deviceName: device.name, hostName: opts.hostName })
       const ctx = req.method === 'GET' ? await opts.assets() : null
       const file = ctx ? resolveAssetRequest(ctx.folder, url.pathname, ctx.projectIds) : null
       if (!file) return json(404, { error: 'not_found' })
-      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-cache', 'cross-origin-resource-policy': 'same-origin' }).end(await readFile(file))
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store', 'cross-origin-resource-policy': 'same-origin' }).end(await readFile(file))
     })().catch(() => {
       if (!res.headersSent) res.writeHead(500).end()
     })
@@ -157,7 +246,9 @@ export async function startHostServer(opts: {
     const offered = String(req.headers['sec-websocket-protocol'] ?? '')
       .split(',')
       .map((p) => p.trim())
-    const device = deviceFor(offered.find((p) => p.startsWith(WS_TOKEN_PREFIX))?.slice(WS_TOKEN_PREFIX.length) ?? null)
+    // The desktop client sends its token as a subprotocol; a browser page sends its HttpOnly cookie,
+    // and only from this Host's own origin (checked above).
+    const device = deviceFor(offered.find((p) => p.startsWith(WS_TOKEN_PREFIX))?.slice(WS_TOKEN_PREFIX.length) ?? (req.headers.origin ? cookieToken(req) : null))
     if (!device || !offered.includes(WS_PROTOCOL)) return reject(401)
     wss.handleUpgrade(req, socket, head, (ws) => accept(ws, { transport: 'ws', device: { id: device.id, name: device.name } }))
   })
