@@ -337,7 +337,15 @@ export const METHODS = {
   'trash:empty': remote(z.object({ confirm: z.literal(true) }), TrashInfoSchema, M),
 
   // Interactive terminals: a shell, Claude Code or Codex in a project's folder. One per project and kind.
-  'sessions:open': remote(z.object({ projectId: ProjectId, kind: z.enum(['shell', 'claude', 'codex']) }), z.object({ sessionId: z.string(), created: z.boolean() }), M),
+  /** Refuses (without starting anything) when Claude Code or Codex isn't installed or signed in where it would run. */
+  'sessions:open': remote(
+    z.object({ projectId: ProjectId, kind: z.enum(['shell', 'claude', 'codex']) }),
+    z.discriminatedUnion('ok', [
+      z.object({ ok: z.literal(true), sessionId: z.string(), created: z.boolean() }),
+      z.object({ ok: z.literal(false), kind: z.enum(['claude', 'codex']), problem: z.enum(['not_installed', 'signed_out']) })
+    ]),
+    M
+  ),
   /** Ends the session and what runs in it (closing a terminal view only detaches). Only after the user confirmed. */
   'sessions:close': remote(z.object({ sessionId: SessionIdSchema, confirm: z.literal(true) }), None, M),
   'sessions:list': remote(None, z.array(SessionInfoSchema)),

@@ -2,6 +2,7 @@ import { sessionId, type SessionId, type SessionKind, type SessionRef } from '@s
 import type { SessionHub } from './sessions/session-hub'
 import type { ProjectSource } from './runner/runner'
 import { readEnvSecrets } from './runner/env-secrets'
+import type { AgentCheck, AgentProblem } from './agent-check'
 
 export type TerminalKind = Exclude<SessionKind, 'run'>
 
@@ -16,12 +17,19 @@ export class Terminals {
     private readonly projects: ProjectSource,
     private readonly env: () => Record<string, string> = () => cleanEnv(),
     /** Stand-ins for the agents (development and tests only): kind → program and arguments. */
-    private readonly commands: Partial<Record<TerminalKind, { file: string; args: string[] }>> = {}
+    private readonly commands: Partial<Record<TerminalKind, { file: string; args: string[] }>> = {},
+    /** Is Claude Code or Codex installed and signed in? Checked before every new agent session. */
+    private readonly check: AgentCheck = async () => ({ ok: true })
   ) {}
 
-  async open(projectId: string, kind: TerminalKind): Promise<{ sessionId: SessionId; created: boolean }> {
+  async open(projectId: string, kind: TerminalKind): Promise<{ ok: true; sessionId: SessionId; created: boolean } | { ok: false; kind: 'claude' | 'codex'; problem: AgentProblem }> {
     const ref: SessionRef = { projectId, kind }
-    if (this.hub.get(ref)) return { sessionId: sessionId(ref), created: false }
+    if (this.hub.get(ref)) return { ok: true, sessionId: sessionId(ref), created: false }
+    // An agent that isn't installed or signed in would only flash an error and end: say why instead.
+    if ((kind === 'claude' || kind === 'codex') && !this.commands[kind]) {
+      const ready = await this.check(kind)
+      if (!ready.ok) return { ok: false, kind, problem: ready.problem }
+    }
     const { dir } = await this.projects.resolve(projectId)
     const shell = process.env['SHELL'] || '/bin/zsh'
     const standIn = this.commands[kind]
@@ -32,7 +40,7 @@ export class Terminals {
         : { file: kind, args: [], display: kind }
     const secrets = await readEnvSecrets(dir)
     this.hub.start({ ref, cwd: dir, file: command.file, args: command.args, env: this.env(), step: 'terminal', display: command.display, secrets: secrets.values })
-    return { sessionId: sessionId(ref), created: true }
+    return { ok: true, sessionId: sessionId(ref), created: true }
   }
 
   async close(ref: SessionRef): Promise<void> {

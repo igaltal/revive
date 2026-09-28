@@ -165,10 +165,10 @@ describe('devices', () => {
   it('two clients on the same session both see the output, and either can type into it', async () => {
     const a = await client()
     const b = await client()
-    const { sessionId, created } = await a.invoke('sessions:open', { projectId: 'echo', kind: 'shell' })
-    expect(sessionId).toBe('echo:shell')
-    expect(created).toBe(true)
-    expect((await b.invoke('sessions:open', { projectId: 'echo', kind: 'shell' })).created).toBe(false)
+    const opened = await a.invoke('sessions:open', { projectId: 'echo', kind: 'shell' })
+    expect(opened).toEqual({ ok: true, sessionId: 'echo:shell', created: true })
+    const sessionId = 'echo:shell'
+    expect(await b.invoke('sessions:open', { projectId: 'echo', kind: 'shell' })).toEqual({ ok: true, sessionId, created: false })
     let seenA = ''
     let seenB = ''
     a.subscribe('session:output', (c) => (seenA += c.data), { sessionId, fromOffset: 0 })

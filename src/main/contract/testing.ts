@@ -44,7 +44,7 @@ export const platform: Platform = {
 }
 
 /** The real core, a copy of the fixture folder with two extra projects, and the offline agent. */
-export function makeCore(opts: { backend?: import('../services/sessions/backend').SessionBackend } = {}): { core: Core; folder: string } {
+export function makeCore(opts: { backend?: import('../services/sessions/backend').SessionBackend; agentCheck?: import('../services/agent-check').AgentCheck } = {}): { core: Core; folder: string } {
   const root = mkdtempSync(join(tmpdir(), 'revive-parity-'))
   const folder = join(root, 'projects')
   cpSync('fixtures/sample-folder', folder, { recursive: true })
@@ -64,6 +64,7 @@ export function makeCore(opts: { backend?: import('../services/sessions/backend'
   const core = createCore({
     userData: join(root, 'user-data'),
     backend: opts.backend ?? childBackend,
+    agentCheck: opts.agentCheck,
     staticServer: { file: process.execPath, args: [resolve('src/main/services/runner/static-server.ts')], env: {} },
     adapter: fakeAdapter(manifestFile),
     guard: SKIPPED_GUARD,

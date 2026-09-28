@@ -20,6 +20,7 @@ import { Dialog } from '@/components/Dialog'
 import { RestoreDialog, RestoreDone, VersionTitle } from '@/components/versions'
 import { useVersions } from '@/state/versions'
 import { useHostName } from '@/state/client'
+import { AgentProblem, type AgentProblemInfo } from '@/components/AgentProblem'
 import type { VersionSummary } from '@shared/versions'
 
 function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
@@ -63,6 +64,7 @@ export function ProjectScreen({ projectId, onBack, onOpenTerminal }: { projectId
   const { versions, lastRestore } = useVersions()
   const [listOpen, setListOpen] = useState(false)
   const [chosen, setChosen] = useState<VersionSummary | null>(null)
+  const [agentProblem, setAgentProblem] = useState<AgentProblemInfo | null>(null)
   const project: Project | undefined = manifest?.state === 'ok' ? manifest.manifest.projects.find((p) => p.id === projectId) : undefined
 
   if (!project) return null
@@ -170,12 +172,18 @@ export function ProjectScreen({ projectId, onBack, onOpenTerminal }: { projectId
                 key={kind}
                 variant="secondary"
                 data-testid={`terminal-open-${kind}`}
-                onClick={() => void transport.invoke('sessions:open', { projectId, kind }).then(({ sessionId }) => onOpenTerminal(sessionId))}
+                onClick={() =>
+                  void transport.invoke('sessions:open', { projectId, kind }).then((r) => {
+                    if (r.ok) onOpenTerminal(r.sessionId)
+                    else setAgentProblem({ kind: r.kind, problem: r.problem })
+                  })
+                }
               >
                 {tx(`terminal.kind.${kind}`)}
               </Button>
             ))}
           </div>
+          {agentProblem ? <AgentProblem info={agentProblem} onDismiss={() => setAgentProblem(null)} /> : null}
         </Section>
       ) : null}
 

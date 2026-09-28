@@ -15,6 +15,7 @@ import { capturePage } from './services/preview/capture'
 import { saveShot } from './services/shots/shots'
 import { handleAssetProtocol, registerAssetScheme } from './services/shots/protocol'
 import { createCore, SKIPPED_GUARD } from './app/core'
+import { agentCheck } from './services/agent-check'
 import { createHandlers, type Core } from './contract/handlers'
 import { registerIpc } from './contract/ipc'
 import { withActionLog } from './contract/dispatch'
@@ -136,6 +137,7 @@ void app.whenReady().then(async () => {
     backend,
     tmuxVersion: tmux ? tmuxVersion(tmux) : null,
     agentCommands,
+    agentCheck: agentCheck(exec),
     // Plain pages are served by Revive's own tiny server, run by Electron in Node mode.
     staticServer: { file: process.execPath, args: [join(import.meta.dirname, 'static-server.js')], env: { ELECTRON_RUN_AS_NODE: '1' } },
     adapter: testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),

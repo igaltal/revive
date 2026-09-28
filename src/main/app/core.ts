@@ -11,6 +11,7 @@ import { VersionService } from '../services/versions/version-service'
 import { saveShot } from '../services/shots/shots'
 import { ServerStreams } from '../contract/streams'
 import { Terminals, type TerminalKind } from '../services/terminals'
+import type { AgentCheck } from '../services/agent-check'
 import { Sessions } from '../services/sessions/sessions'
 import type { Core } from '../contract/handlers'
 
@@ -28,6 +29,8 @@ export interface CoreOptions {
   tmuxVersion?: string | null
   /** Stand-ins for the agents (development and tests only). */
   agentCommands?: Partial<Record<TerminalKind, { file: string; args: string[] }>>
+  /** Checks Claude Code and Codex are installed and signed in before a session starts. */
+  agentCheck?: AgentCheck
 }
 
 /**
@@ -77,7 +80,7 @@ export function createCore(opts: CoreOptions): Core {
     }
   )
 
-  const terminals = new Terminals(hub, workspace, undefined, opts.agentCommands)
+  const terminals = new Terminals(hub, workspace, undefined, opts.agentCommands, opts.agentCheck)
   const sessions = new Sessions({ hub, backend: opts.backend, projects: workspace, runner, tmuxVersion: opts.tmuxVersion ?? null })
   return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, sessions, guard: opts.guard }
 }

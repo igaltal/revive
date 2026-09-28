@@ -47,7 +47,7 @@ const renderApp = () =>
 async function openTerminal(handlers: Parameters<typeof installMockRevive>[1] = {}) {
   const mock = installMockRevive(folder, {
     'manifest:get': () => ({ state: 'ok', manifest: sampleManifest() }),
-    'sessions:open': (a) => ({ sessionId: `${(a as { projectId: string }).projectId}:${(a as { kind: string }).kind}`, created: true }),
+    'sessions:open': (a) => ({ ok: true, sessionId: `${(a as { projectId: string }).projectId}:${(a as { kind: string }).kind}`, created: true }),
     'sessions:list': () => [{ sessionId: 'bakery-site:claude', projectId: 'bakery-site', kind: 'claude', step: 'terminal' }],
     ...handlers
   })
@@ -103,6 +103,40 @@ describe('the terminal screen', () => {
     expect(within(banner).getByText('brew install tmux').getAttribute('dir')).toBe('ltr')
     fireEvent.click(screen.getByText('Technical details'))
     expect(screen.getByTestId('terminal-hebrew-note').textContent).toBe('Hebrew inside the terminal is shown left to right.')
+  })
+})
+
+describe('an agent that can’t start', () => {
+  it('says why in one sentence, with the step, and opens nothing', async () => {
+    const mock = installMockRevive(folder, {
+      'manifest:get': () => ({ state: 'ok', manifest: sampleManifest() }),
+      'sessions:open': () => ({ ok: false, kind: 'claude', problem: 'signed_out' })
+    })
+    renderApp()
+    fireEvent.click((await screen.findAllByTestId('card-action'))[0]!)
+    fireEvent.click(await screen.findByTestId('terminal-open-claude'))
+    const notice = await screen.findByTestId('agent-problem')
+    expect(notice.textContent).toContain("You're signed out of Claude Code. Sign in, then open it again.")
+    expect(screen.queryByTestId('terminal-screen')).toBeNull()
+    fireEvent.click(within(notice).getByTestId('agent-fix'))
+    expect(mock.calls.some((c) => c.channel === 'prereq:signIn')).toBe(true)
+  })
+
+  it('on another computer’s window, says where the step happens', async () => {
+    const { capabilitiesFor } = await import('@shared/contract')
+    installMockRevive(folder, {
+      'client:status': () => ({ state: 'open', host: { name: 'Studio Mac', address: 'https://studio.ts.net' }, problem: null, capabilities: capabilitiesFor('ws') }),
+      'manifest:get': () => ({ state: 'ok', manifest: sampleManifest() }),
+      'sessions:open': () => ({ ok: false, kind: 'codex', problem: 'signed_out' })
+    })
+    renderApp()
+    fireEvent.click((await screen.findAllByTestId('card-action'))[0]!)
+    fireEvent.click(await screen.findByTestId('terminal-open-codex'))
+    const notice = await screen.findByTestId('agent-problem')
+    expect(notice.textContent).toContain("You're signed out of Codex.")
+    expect(within(notice).getByText('codex login').getAttribute('dir')).toBe('ltr')
+    expect(notice.textContent).toContain('This has to be done on Studio Mac, the computer that runs Revive.')
+    expect(within(notice).queryByTestId('agent-fix')).toBeNull()
   })
 })
 

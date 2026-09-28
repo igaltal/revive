@@ -495,5 +495,16 @@
       "confirmTitle": "End this session?",
       "confirmBody": "Anything still running in it stops."
     }
+  },
+  "agent": {
+    "claude": {
+      "not_installed": "Claude Code isn't installed yet, so it can't open here.",
+      "signed_out": "You're signed out of Claude Code. Sign in, then open it again."
+    },
+    "codex": {
+      "not_installed": "Codex isn't installed yet, so it can't open here.",
+      "signed_out": "You're signed out of Codex. To sign in, type this in Terminal, then open it again:"
+    },
+    "onHost": "This has to be done on {host}, the computer that runs Revive."
   }
 }
