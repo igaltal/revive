@@ -15,6 +15,8 @@ import { Pairing } from './pairing'
 export interface HostPlatform {
   hostName: string
   exec: Exec
+  /** Sessions outlive Revive (tmux): Host mode needs it, so devices can always reattach. */
+  persistentSessions: boolean
   /** powerSaveBlocker 'prevent-app-suspension' while sharing. */
   keepAwake(on: boolean): void
   loginItem: { get(): boolean; set(on: boolean): void }
@@ -63,7 +65,7 @@ export class HostService {
   /** At startup: sharing comes back on by itself if it was on (after a reboot, say). */
   async init(): Promise<void> {
     await this.refreshSystem()
-    if (this.saved.sharing) await this.start().catch((e: unknown) => console.error('[host] could not start sharing', e))
+    if (this.saved.sharing && this.opts.platform.persistentSessions) await this.start().catch((e: unknown) => console.error('[host] could not start sharing', e))
     this.emit()
   }
 
@@ -77,6 +79,7 @@ export class HostService {
       hostName: this.opts.platform.hostName,
       tailscale: this.tailscale,
       sleepMinutes: this.sleepMinutes,
+      tmux: this.opts.platform.persistentSessions,
       startAtLogin: this.opts.platform.loginItem.get(),
       pairing: code && this.pairingCode?.code === code.code ? this.pairingCode : null,
       lockedUntil: locked ? new Date(locked).toISOString() : null,
@@ -86,6 +89,7 @@ export class HostService {
   }
 
   async setSharing(on: boolean): Promise<HostStatus> {
+    if (on && !this.opts.platform.persistentSessions) throw new Error('Host mode needs tmux, so sessions keep running for your devices (brew install tmux)')
     if (on) await this.start()
     else await this.stop()
     this.saved.sharing = on

@@ -10,7 +10,8 @@ import { Workspace } from '../services/workspace'
 import { VersionService } from '../services/versions/version-service'
 import { saveShot } from '../services/shots/shots'
 import { ServerStreams } from '../contract/streams'
-import { Terminals } from '../services/terminals'
+import { Terminals, type TerminalKind } from '../services/terminals'
+import { Sessions } from '../services/sessions/sessions'
 import type { Core } from '../contract/handlers'
 
 export interface CoreOptions {
@@ -24,6 +25,9 @@ export interface CoreOptions {
   /** Takes a picture of a running app (Electron offscreen); none in headless setups. */
   capturePage?: (url: string) => Promise<Buffer | null>
   runnerTiming?: RunnerDeps['timing']
+  tmuxVersion?: string | null
+  /** Stand-ins for the agents (development and tests only). */
+  agentCommands?: Partial<Record<TerminalKind, { file: string; args: string[] }>>
 }
 
 /**
@@ -73,8 +77,9 @@ export function createCore(opts: CoreOptions): Core {
     }
   )
 
-  const terminals = new Terminals(hub, workspace)
-  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, guard: opts.guard }
+  const terminals = new Terminals(hub, workspace, undefined, opts.agentCommands)
+  const sessions = new Sessions({ hub, backend: opts.backend, projects: workspace, runner, tmuxVersion: opts.tmuxVersion ?? null })
+  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, sessions, guard: opts.guard }
 }
 
 /** For setups without Claude (the offline test agent): nothing to check. */

@@ -125,8 +125,8 @@ export class WsTransport extends BaseTransport {
     }
   }
 
-  protected startWatch(sessionId: string, fromOffset: number): void {
-    this.write({ t: 'watch', s: sessionId, o: fromOffset })
+  protected startWatch(sessionId: string, fromOffset: number, epoch: string | undefined): void {
+    this.write({ t: 'watch', s: sessionId, o: fromOffset, ...(epoch ? { e: epoch } : {}) })
   }
 
   protected stopWatch(sessionId: string): void {
@@ -207,7 +207,7 @@ export class WsTransport extends BaseTransport {
         }
       } else {
         const { header, data } = decodeOutputFrame(ev.data as ArrayBuffer)
-        const chunk: SessionChunk = { sessionId: header.s, offset: header.o, data, ...(header.tr ? { truncated: true } : {}) }
+        const chunk: SessionChunk = { sessionId: header.s, offset: header.o, epoch: header.e, data, ...(header.tr ? { truncated: true } : {}) }
         this.allHandler?.(chunk)
         this.receiveChunk(chunk)
       }

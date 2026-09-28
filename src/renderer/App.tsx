@@ -16,11 +16,12 @@ import { useClient } from '@/state/client'
 import { useHostStatus } from '@/state/host'
 import { PairingRequests } from '@/components/host'
 import { ClientConnecting, ClientRejected } from '@/screens/ClientScreens'
+import { TerminalScreen } from '@/screens/TerminalScreen'
 import { Onboarding } from '@/screens/onboarding/Onboarding'
 import { FolderStep } from '@/screens/onboarding/FolderStep'
 import { PrereqStep } from '@/screens/onboarding/PrereqStep'
 
-type AppRoute = { name: Route } | { name: 'folder' } | { name: 'prereq' } | { name: 'project'; id: string }
+type AppRoute = { name: Route } | { name: 'folder' } | { name: 'prereq' } | { name: 'project'; id: string } | { name: 'terminal'; projectId: string; sessionId: string }
 
 export function App(): ReactNode {
   const { host } = useHostStatus()
@@ -70,7 +71,8 @@ function Screens(): ReactNode {
             onCheckComputer={() => setRoute({ name: 'prereq' })}
           />
         )}
-        {route.name === 'project' && <ProjectScreen projectId={route.id} onBack={toProjects} />}
+        {route.name === 'project' && <ProjectScreen projectId={route.id} onBack={toProjects} onOpenTerminal={(sessionId) => setRoute({ name: 'terminal', projectId: route.id, sessionId })} />}
+        {route.name === 'terminal' && <TerminalScreen projectId={route.projectId} sessionId={route.sessionId} onBack={() => setRoute({ name: 'project', id: route.projectId })} />}
         {route.name === 'folder' && (
           <div className="flex max-w-3xl flex-col gap-8">
             <FolderStep

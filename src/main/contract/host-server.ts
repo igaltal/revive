@@ -39,6 +39,8 @@ export interface HostServer {
 interface Watch {
   /** The next byte this client needs. */
   next: number
+  /** The buffer lifetime `next` belongs to. */
+  epoch: string | undefined
 }
 
 interface Conn {
@@ -168,10 +170,12 @@ export async function startHostServer(opts: {
 
   /** Sends what a client is missing from the session buffer, in one frame. Never waits. */
   const catchUp = (c: Conn, id: SessionId, w: Watch) => {
-    const out = opts.hub.output(id, w.next)
-    if (out.nextOffset <= w.next && !out.truncated) return
-    if (out.data.length > 0 || out.truncated) c.ws.send(encodeOutputFrame({ s: id, o: out.fromOffset, tr: out.truncated || out.fromOffset > w.next }, out.data))
+    const out = opts.hub.output(id, w.next, w.epoch)
+    const restarted = w.epoch !== undefined && w.epoch !== out.epoch
+    if (!restarted && out.nextOffset <= w.next && !out.truncated) return
+    if (out.data.length > 0 || out.truncated || restarted) c.ws.send(encodeOutputFrame({ s: id, o: out.fromOffset, e: out.epoch, tr: out.truncated || (!restarted && out.fromOffset > w.next) }, out.data))
     w.next = out.nextOffset
+    w.epoch = out.epoch
   }
 
   const accept = (ws: WebSocket, ctx: CallContext) => {
@@ -204,7 +208,7 @@ export async function startHostServer(opts: {
         const ref = parseSessionId(String(msg.s))
         if (!ref || typeof msg.o !== 'number' || msg.o < 0) return
         const id = toSessionId(ref)
-        const w = { next: Math.floor(msg.o) }
+        const w: Watch = { next: Math.floor(msg.o), epoch: typeof msg.e === 'string' ? msg.e : undefined }
         c.watches.set(id, w)
         catchUp(c, id, w)
       } else if (msg.t === 'unwatch') {
@@ -227,18 +231,19 @@ export async function startHostServer(opts: {
       if ((SERVER_STREAMS as readonly string[]).includes(stream) && !LOCAL_STREAMS.has(stream)) for (const c of conns) send(c, { t: 'ev', s: stream, p: payload })
       return
     }
-    const chunk = payload as { sessionId: string; offset: number; data: string }
+    const chunk = payload as { sessionId: string; offset: number; epoch: string; data: string }
     const id = chunk.sessionId as SessionId
     for (const c of conns) {
       let w = c.watches.get(id)
-      if (!w && c.all) c.watches.set(id, (w = { next: chunk.offset }))
+      if (!w && c.all) c.watches.set(id, (w = { next: chunk.offset, epoch: chunk.epoch }))
       if (!w || c.ws.readyState !== c.ws.OPEN) continue
       // A slow client never holds anyone up: it falls behind, and catches up from the buffer.
       if (c.ws.bufferedAmount > OUTPUT_HIGH_WATER) continue
-      if (chunk.offset === w.next) {
-        c.ws.send(encodeOutputFrame({ s: id, o: chunk.offset }, chunk.data))
+      if (chunk.offset === w.next && (w.epoch === undefined || w.epoch === chunk.epoch)) {
+        w.epoch = chunk.epoch
+        c.ws.send(encodeOutputFrame({ s: id, o: chunk.offset, e: chunk.epoch }, chunk.data))
         w.next = chunk.offset + Buffer.byteLength(chunk.data)
-      } else if (chunk.offset > w.next) {
+      } else if (chunk.offset > w.next || w.epoch !== chunk.epoch) {
         catchUp(c, id, w)
       }
     }

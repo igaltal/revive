@@ -14,7 +14,9 @@ export class Terminals {
   constructor(
     private readonly hub: SessionHub,
     private readonly projects: ProjectSource,
-    private readonly env: () => Record<string, string> = () => cleanEnv()
+    private readonly env: () => Record<string, string> = () => cleanEnv(),
+    /** Stand-ins for the agents (development and tests only): kind → program and arguments. */
+    private readonly commands: Partial<Record<TerminalKind, { file: string; args: string[] }>> = {}
   ) {}
 
   async open(projectId: string, kind: TerminalKind): Promise<{ sessionId: SessionId; created: boolean }> {
@@ -22,7 +24,12 @@ export class Terminals {
     if (this.hub.get(ref)) return { sessionId: sessionId(ref), created: false }
     const { dir } = await this.projects.resolve(projectId)
     const shell = process.env['SHELL'] || '/bin/zsh'
-    const command = kind === 'shell' ? { file: shell, args: ['-l'], display: `${shell} -l` } : { file: kind, args: [], display: kind }
+    const standIn = this.commands[kind]
+    const command = standIn
+      ? { ...standIn, display: [standIn.file, ...standIn.args].join(' ') }
+      : kind === 'shell'
+        ? { file: shell, args: ['-l'], display: `${shell} -l` }
+        : { file: kind, args: [], display: kind }
     const secrets = await readEnvSecrets(dir)
     this.hub.start({ ref, cwd: dir, file: command.file, args: command.args, env: this.env(), step: 'terminal', display: command.display, secrets: secrets.values })
     return { sessionId: sessionId(ref), created: true }

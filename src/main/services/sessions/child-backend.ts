@@ -8,6 +8,12 @@ import type { SessionBackend, SessionExit, SessionHandle, SessionSpec } from './
  */
 export const childBackend: SessionBackend = {
   kind: 'pty',
+  persistent: false,
+  list: async () => [],
+  attach: () => {
+    throw new Error('Child sessions end with Revive')
+  },
+  end: async () => {},
   spawn(spec: SessionSpec): SessionHandle {
     const child = spawn(spec.file, spec.args, { cwd: spec.cwd, env: spec.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
     let exited: SessionExit | null = null
@@ -47,6 +53,9 @@ export const childBackend: SessionBackend = {
         }
         exitListeners.add(l)
         return () => exitListeners.delete(l)
+      },
+      detach: async () => {
+        await handle.kill()
       },
       kill: () =>
         new Promise((resolve) => {

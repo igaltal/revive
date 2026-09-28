@@ -66,7 +66,12 @@
       "haiku": "Quick and inexpensive",
       "sonnet": "More thorough, costs more"
     },
-    "version": "Revive {version}"
+    "version": "Revive {version}",
+    "keepAgents": {
+      "title": "Keep agents running after Revive quits",
+      "hint": "Claude Code, Codex and terminals keep working when you quit Revive. Projects you started still stop.",
+      "noTmux": "This needs tmux: brew install tmux"
+    }
   },
   "projects": {
     "subtitle": "Everything you built, in one place.",
@@ -349,7 +354,8 @@
       "hint": "Let your other computers work with the projects on {name}, through your own private network.",
       "switch": "Share this computer",
       "sleep": "This Mac is set to sleep after {minutes} minutes. Revive keeps it awake while sharing, but closing the lid will still put it to sleep.",
-      "login": "Start Revive when you log in (it waits in the menu bar)"
+      "login": "Start Revive when you log in (it waits in the menu bar)",
+      "needsTmux": "Host mode needs tmux, so sessions keep running for your devices. Install it with:"
     },
     "reach": {
       "title": "How your other computers reach it",
@@ -460,6 +466,34 @@
       "open": "Connected",
       "reconnecting": "Reconnecting…",
       "rejected": "Not allowed"
+    }
+  },
+  "terminal": {
+    "openTitle": "Open a terminal here",
+    "kind": {
+      "shell": "Terminal",
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "run": "Running project"
+    },
+    "end": "End session",
+    "empty": "No terminal is open for this project.",
+    "session": "Session",
+    "banner": "Sessions stop when Revive quits. To keep them running, install tmux:",
+    "hebrewNote": "Hebrew inside the terminal is shown left to right.",
+    "endConfirm": {
+      "title": "End this session?",
+      "body": "{kind} stops, with anything still running in it. To leave it running, just go back instead.",
+      "button": "End it"
+    }
+  },
+  "sessions": {
+    "orphans": {
+      "title": "Sessions left running",
+      "hint": "These kept running for projects that aren't in the list any more. Revive never ends them on its own.",
+      "end": "End",
+      "confirmTitle": "End this session?",
+      "confirmBody": "Anything still running in it stops."
     }
   }
 }

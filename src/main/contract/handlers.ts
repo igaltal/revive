@@ -17,6 +17,7 @@ import type { VersionService } from '../services/versions/version-service'
 import { listShots } from '../services/shots/shots'
 import type { CoreHandlers } from './dispatch'
 import type { Terminals } from '../services/terminals'
+import type { Sessions } from '../services/sessions/sessions'
 import { parseSessionId as parseId } from '@shared/runtime'
 import type { ServerStreams } from './streams'
 
@@ -46,6 +47,7 @@ export interface Core {
   versions: VersionService
   streams: ServerStreams
   terminals: Terminals
+  sessions: Sessions
   guard: { current: () => GuardState; recheck: () => Promise<GuardState> }
 }
 
@@ -115,7 +117,7 @@ export function createHandlers(core: Core, platform: Platform): CoreHandlers {
     'runner:logs': ({ projectId }) => runner.logs(projectId),
     'runtime:head': () => ({ seq: core.bus.lastSeq }),
     'runtime:since': ({ seq }) => core.bus.since(seq),
-    'sessions:output': ({ sessionId, fromOffset }) => core.hub.output(toSessionId(parseSessionId(sessionId)!), fromOffset),
+    'sessions:output': ({ sessionId, fromOffset, epoch }) => core.hub.output(toSessionId(parseSessionId(sessionId)!), fromOffset, epoch),
 
     'preview:show': ({ projectId, bounds, device }) => platform.preview.show(projectId, bounds, device),
     'preview:hide': () => platform.preview.hide(),
@@ -140,6 +142,8 @@ export function createHandlers(core: Core, platform: Platform): CoreHandlers {
 
     'sessions:open': ({ projectId, kind }) => core.terminals.open(projectId, kind),
     'sessions:close': ({ sessionId }) => core.terminals.close(parseId(sessionId)!),
-    'sessions:list': () => core.terminals.list()
+    'sessions:list': () => core.terminals.list(),
+    'sessions:info': () => core.sessions.info(),
+    'sessions:endOrphan': ({ name }) => core.sessions.endOrphan(name)
   }
 }

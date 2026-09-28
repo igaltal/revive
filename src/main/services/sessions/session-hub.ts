@@ -2,7 +2,7 @@ import { sessionId, type RunStep, type SessionId, type SessionOutput, type Sessi
 import { redact } from '@shared/redact'
 import { splitLines, stripAnsi } from '@shared/ansi'
 import type { RuntimeBus } from '../runtime-bus'
-import type { SessionBackend, SessionExit, SessionHandle, SessionSpec } from './backend'
+import type { ExistingSession, SessionBackend, SessionExit, SessionHandle, SessionSpec } from './backend'
 import { OutputBuffer } from './output-buffer'
 
 const LOG_LINES = 400
@@ -45,11 +45,53 @@ export class SessionHub {
   start(spec: StartSpec): { handle: SessionHandle; exited: Promise<SessionExit> } {
     const id = sessionId(spec.ref)
     if (this.live.has(id)) throw new Error(`Session ${id} is already running`)
-    const handle = this.backend.spawn(spec)
+    const handle = (this.backend.spawn as (s: StartSpec) => SessionHandle)(spec)
+    return this.track(spec.ref, handle, spec.step, spec.display, spec.secrets)
+  }
+
+  /**
+   * Takes over a session left running by an earlier Revive (tmux). Its history
+   * comes first, so the output buffer is rebuilt from it (as a new epoch).
+   */
+  adopt(existing: ExistingSession & { ref: SessionRef }, opts: { step: RunStep; display: string; secrets: readonly string[] }): { handle: SessionHandle; exited: Promise<SessionExit> } {
+    const id = sessionId(existing.ref)
+    const current = this.live.get(id)
+    if (current) return { handle: current.handle, exited: current.exited }
+    return this.track(existing.ref, this.backend.attach(existing), opts.step, opts.display, opts.secrets)
+  }
+
+  /** Whether sessions outlive Revive (tmux). */
+  get persistent(): boolean {
+    return this.backend.persistent
+  }
+
+  get backendKind(): 'pty' | 'tmux' {
+    return this.backend.kind
+  }
+
+  /** Resolves when the session ends (not when it's detached). */
+  whenExited(ref: SessionRef): Promise<SessionExit> | null {
+    return this.live.get(sessionId(ref))?.exited ?? null
+  }
+
+  /** Stops watching sessions without ending them (quitting while they keep running). */
+  async detachAll(keep: (ref: SessionRef) => boolean = () => true): Promise<void> {
+    await Promise.all(
+      [...this.live.entries()]
+        .filter(([, l]) => keep(l.handle.ref))
+        .map(async ([id, l]) => {
+          this.live.delete(id)
+          await l.handle.detach()
+        })
+    )
+  }
+
+  private track(ref: SessionRef, handle: SessionHandle, step: RunStep, rawDisplay: string, secrets: readonly string[]): { handle: SessionHandle; exited: Promise<SessionExit> } {
+    const id = sessionId(ref)
     // A command can carry a key inline (API_TOKEN=… npm run dev): mask it like any output.
-    const display = redact(spec.display, spec.secrets)
-    this.bus.emit({ type: 'process.started', session: spec.ref, step: spec.step, command: display, backend: this.backend.kind })
-    this.write(spec.ref, `$ ${display}\r\n`)
+    const display = redact(rawDisplay, secrets)
+    this.bus.emit({ type: 'process.started', session: ref, step, command: display, backend: this.backend.kind })
+    this.write(ref, `$ ${display}\r\n`)
 
     // Output is masked a line at a time, so a secret is never split across two writes.
     let pending = ''
@@ -58,9 +100,9 @@ export class SessionHub {
       if (timer) clearTimeout(timer)
       timer = null
       if (!pending) return
-      const data = redact(pending, spec.secrets)
+      const data = redact(pending, secrets)
       pending = ''
-      this.write(spec.ref, data)
+      this.write(ref, data)
     }
     const offData = handle.onData((chunk) => {
       pending += chunk
@@ -80,11 +122,11 @@ export class SessionHub {
         flush()
         offData()
         if (this.live.get(id)?.handle === handle) this.live.delete(id)
-        this.bus.emit({ type: 'process.exited', session: spec.ref, step: spec.step, exitCode: exit.exitCode, signal: exit.signal })
+        this.bus.emit({ type: 'process.exited', session: ref, step, exitCode: exit.exitCode, signal: exit.signal })
         resolve(exit)
       })
     })
-    this.live.set(id, { handle, step: spec.step, exited })
+    this.live.set(id, { handle, step, exited })
     return { handle, exited }
   }
 
@@ -108,10 +150,15 @@ export class SessionHub {
   }
 
   /** Raw output (masked, with colour codes) after `fromOffset`, for terminals and late clients. */
-  output(id: SessionId, fromOffset: number): SessionOutput {
-    const buffer = this.buffers.get(id)
-    if (!buffer) return { sessionId: id, data: '', fromOffset: 0, nextOffset: 0, truncated: false }
-    return { sessionId: id, ...buffer.read(fromOffset) }
+  /**
+   * Output after `fromOffset`. An offset from another epoch (before a Revive
+   * restart) counts from the start of this one, marked truncated.
+   */
+  output(id: SessionId, fromOffset: number, epoch?: string): SessionOutput {
+    const buffer = this.bufferFor(id)
+    const stale = epoch !== undefined && epoch !== buffer.epoch
+    const r = buffer.read(stale ? 0 : fromOffset)
+    return { sessionId: id, epoch: buffer.epoch, ...r, truncated: r.truncated || (stale && fromOffset > 0) }
   }
 
   /** Readable output since the last `clearLog`: masked, without colour codes or spinners. */
@@ -133,11 +180,15 @@ export class SessionHub {
     this.marks.set(id, this.buffers.get(id)?.endOffset ?? 0)
   }
 
-  private write(ref: SessionRef, data: string): void {
-    const id = sessionId(ref)
+  private bufferFor(id: SessionId): OutputBuffer {
     let buffer = this.buffers.get(id)
     if (!buffer) this.buffers.set(id, (buffer = new OutputBuffer()))
+    return buffer
+  }
+
+  private write(ref: SessionRef, data: string): void {
+    const buffer = this.bufferFor(sessionId(ref))
     const offset = buffer.append(data)
-    this.bus.emitOutput({ session: ref, data, offset })
+    this.bus.emitOutput({ session: ref, data, offset, epoch: buffer.epoch })
   }
 }

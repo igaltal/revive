@@ -9,6 +9,7 @@ import { createClaudeAdapter } from './scanner/claude-adapter'
 import { fakeAdapter } from './scanner/fake-adapter'
 import { TurnLimitGuard } from './scanner/turn-limit-guard'
 import { ptyBackend } from './services/sessions/pty-backend'
+import { findTmux, TmuxBackend, tmuxVersion } from './services/sessions/tmux-backend'
 import { PreviewManager } from './services/preview/preview-manager'
 import { capturePage } from './services/preview/capture'
 import { saveShot } from './services/shots/shots'
@@ -109,9 +110,32 @@ void app.whenReady().then(async () => {
   // Claude Code must prove it honours the turn limit before it may read a folder.
   let core: Core | null = null
   const guard = new TurnLimitGuard(join(userData, 'claude-guard.json'), exec, (s) => core?.streams.emit('guard:changed', s))
+  // Sessions in Revive's own tmux server outlive it; without tmux they're direct children and stop with it.
+  const tmux = findTmux()
+  const dev = !app.isPackaged
+  const backend = tmux
+    ? new TmuxBackend({
+        tmux,
+        // Tests use their own socket so they never touch the real one.
+        socket: (dev && process.env['REVIVE_TMUX_SOCKET']) || 'revive',
+        config: join(import.meta.dirname, '../../resources/tmux.conf'),
+        exitDir: join(userData, 'tmux-exit')
+      })
+    : ptyBackend
+  // Development and tests only: stand-ins for Claude Code and Codex.
+  const agentCommands = dev
+    ? Object.fromEntries(
+        (['claude', 'codex'] as const).flatMap((k) => {
+          const file = process.env[`REVIVE_AGENT_${k.toUpperCase()}`]
+          return file ? [[k, { file: 'node', args: [file] }]] : []
+        })
+      )
+    : {}
   core = createCore({
     userData,
-    backend: ptyBackend,
+    backend,
+    tmuxVersion: tmux ? tmuxVersion(tmux) : null,
+    agentCommands,
     // Plain pages are served by Revive's own tiny server, run by Electron in Node mode.
     staticServer: { file: process.execPath, args: [join(import.meta.dirname, 'static-server.js')], env: { ELECTRON_RUN_AS_NODE: '1' } },
     adapter: testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),
@@ -180,6 +204,7 @@ void app.whenReady().then(async () => {
     platform: {
       hostName: computerName(),
       exec,
+      persistentSessions: backend.persistent,
       keepAwake: (on) => {
         if (on && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension')
         if (!on && awake !== null) {
@@ -211,6 +236,8 @@ void app.whenReady().then(async () => {
   client.resume()
   lastMode = client.mode
   await host.init()
+  // Sessions an earlier Revive left running: take over the ones of known projects, list the rest.
+  await c.sessions.adopt().catch((e: unknown) => console.error('[sessions] could not adopt', e))
   powerMonitor.on('resume', () => client.wake())
   powerMonitor.on('unlock-screen', () => client.wake())
 
@@ -257,7 +284,9 @@ void app.whenReady().then(async () => {
     c.scans.abortAll()
     killAllTasks()
     client.close()
-    void Promise.race([Promise.all([c.runner.stopAll(), host.stop()]), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
+    // Hosting: everything keeps running for paired devices. Local: dev servers stop; agents per Settings.
+    const policy = { hosting: host.status().sharing, keepAgents: c.settings.get().keepAgentsRunning }
+    void Promise.race([Promise.all([c.sessions.quit(policy), host.stop()]), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
   })
 })
 

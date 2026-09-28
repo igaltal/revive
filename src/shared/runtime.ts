@@ -42,6 +42,7 @@ export function parseSessionId(id: string): SessionRef | null {
 
 /** What a run session is running right now, for the runner's own bookkeeping. */
 export type RunStep = 'install' | 'dev' | 'serve' | 'terminal'
+export const RUN_STEPS = ['install', 'dev', 'serve', 'terminal'] as const satisfies readonly RunStep[]
 
 export const RUN_STATUSES = ['idle', 'installing', 'starting', 'checking', 'running', 'stopping', 'stopped', 'broken'] as const
 export type RunStatus = (typeof RUN_STATUSES)[number]
@@ -120,6 +121,8 @@ export interface OutputEvent {
   session: SessionRef
   data: string
   offset: number
+  /** The buffer's lifetime; offsets from another epoch don't apply. */
+  epoch: string
   at: string
 }
 
@@ -149,6 +152,8 @@ export const SESSION_OUTPUT_BYTES = 256 * 1024
 /** A slice of a session's output buffer. */
 export interface SessionOutput {
   sessionId: SessionId
+  /** The buffer's lifetime. A client holding offsets from another epoch starts over. */
+  epoch: string
   data: string
   /** Where `data` starts. Later than asked for when older output was already dropped. */
   fromOffset: number

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
-import { freshUserData, launch, sampleFolder, stubFolderDialog } from './helpers'
+import { freshUserData, killTestTmux, launch, sampleFolder, stubFolderDialog } from './helpers'
+
+test.afterAll(() => killTestTmux())
 
 // Grows milestone by milestone; the full journey lands in M5.
 test('first run: language, computer check, folder, then straight to My projects next time', async () => {
@@ -367,4 +369,89 @@ test('while sharing, closing the window leaves Revive running and serving; quitt
   // Quitting (the menu bar's Quit) stops the server with it.
   await app.close()
   await expect(fetch(`http://127.0.0.1:${port}/whoami`)).rejects.toThrow()
+})
+
+test('an agent keeps running through a real quit and relaunch, and its terminal shows the earlier output', async () => {
+  test.setTimeout(90_000)
+  const { mkdtempSync, writeFileSync, readFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { spawnSync } = await import('node:child_process')
+  const { tmuxSocketFor } = await import('./helpers')
+  // A stand-in for Claude Code: prints a tick every second, and logs each one with the time.
+  const dir = mkdtempSync(join(tmpdir(), 'revive-agent-'))
+  const ticks = join(dir, 'ticks.log')
+  const agent = join(dir, 'agent.cjs')
+  writeFileSync(agent, `const fs=require('fs');let n=0;const tick=()=>{n++;console.log('agent tick '+n);fs.appendFileSync(${JSON.stringify(ticks)}, n+' '+Date.now()+'\\n')};tick();setInterval(tick,1000)`)
+  const userData = freshUserData()
+  const folder = sampleFolder()
+  const env = { REVIVE_AGENT_CLAUDE: agent }
+  const socket = tmuxSocketFor(userData)
+  const tmuxHas = () => spawnSync('tmux', ['-L', socket, 'has-session', '-t', '=revive-bakery-site-claude']).status === 0
+  const screenText = (w: import('@playwright/test').Page) => w.locator('.xterm-rows').innerText()
+
+  const app = await launch(userData, env)
+  const win = await app.firstWindow()
+  await win.getByTestId('welcome-en').click()
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, folder)
+  await win.getByTestId('folder-pick').click()
+  await win.getByTestId('scan-start').click()
+  await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  await win.locator('[data-project="bakery-site"]').getByRole('button', { name: 'Sunrise Bakery' }).first().click()
+  await win.getByTestId('terminal-open-claude').click()
+  await expect(win.getByTestId('terminal-tab')).toHaveText('Claude Code')
+  await expect.poll(() => screenText(win), { timeout: 15_000 }).toContain('agent tick 2')
+  // Typing reaches it (and nothing in tmux swallows the keys).
+  await win.locator('.xterm-helper-textarea').focus()
+  await win.keyboard.type('a')
+
+  // A real quit, in local mode with "keep agents running" on (the default).
+  await app.close()
+  expect(tmuxHas()).toBe(true)
+  const countAtQuit = readFileSync(ticks, 'utf8').trim().split('\n').length
+  await new Promise((r) => setTimeout(r, 2500))
+  expect(readFileSync(ticks, 'utf8').trim().split('\n').length).toBeGreaterThan(countAtQuit) // still ticking with Revive closed
+
+  // Relaunch: Revive takes the session over; the terminal shows what it printed before, and it goes on.
+  const again = await launch(userData, env)
+  const win2 = await again.firstWindow()
+  await win2.locator('[data-project="bakery-site"]').getByRole('button', { name: 'Sunrise Bakery' }).first().click()
+  await win2.getByTestId('terminal-open-claude').click()
+  await expect.poll(() => screenText(win2), { timeout: 15_000 }).toContain('agent tick 1')
+  const later = countAtQuit + 3
+  await expect.poll(() => screenText(win2), { timeout: 15_000 }).toContain(`agent tick ${later}`)
+  // The agent's own clock: it never stopped.
+  const times = readFileSync(ticks, 'utf8').trim().split('\n').map((l) => Number(l.split(' ')[1]))
+  expect(Math.max(...times.slice(1).map((t, i) => t - times[i]!))).toBeLessThan(2000)
+
+  // Ending it is a separate, confirmed action; then it's really gone.
+  await win2.getByTestId('terminal-end').click()
+  await win2.getByTestId('terminal-end-confirm-button').click()
+  await expect.poll(tmuxHas).toBe(false)
+  await again.close()
+})
+
+test('without tmux: sessions fall back to direct terminals, with a one-line banner', async () => {
+  const userData = freshUserData()
+  const app = await launch(userData, { REVIVE_TMUX: 'none' })
+  const win = await app.firstWindow()
+  await win.getByTestId('welcome-en').click()
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, sampleFolder())
+  await win.getByTestId('folder-pick').click()
+  await win.getByTestId('scan-start').click()
+  await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  await win.locator('[data-project="bakery-site"]').getByRole('button', { name: 'Sunrise Bakery' }).first().click()
+  await win.getByTestId('terminal-open-shell').click()
+  await expect(win.getByTestId('terminal-banner')).toContainText('Sessions stop when Revive quits.')
+  await expect(win.getByTestId('terminal-banner')).toContainText('brew install tmux')
+  await win.locator('.xterm-helper-textarea').focus()
+  await win.keyboard.type('echo direct-$((40+2))\n')
+  await expect.poll(() => win.locator('.xterm-rows').innerText(), { timeout: 10_000 }).toContain('direct-42')
+  await win.getByTestId('nav-settings').click()
+  await expect(win.getByTestId('sharing-needs-tmux')).toContainText('Host mode needs tmux')
+  await app.close()
 })

@@ -52,7 +52,7 @@ function DeviceSwitch({ value, onChange }: { value: PreviewDevice; onChange: (d:
 }
 
 /** Project page: start and stop, the live preview, a plain description, technical details folded. */
-export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack: () => void }): ReactNode {
+export function ProjectScreen({ projectId, onBack, onOpenTerminal }: { projectId: string; onBack: () => void; onOpenTerminal?: (sessionId: string) => void }): ReactNode {
   const { t, tx, lang } = useT()
   const { manifest } = useProjects()
   const { runs, shots, start, stop } = useRuntime()
@@ -160,6 +160,23 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
             <RunReason project={project} reason={run.reason} />
           </p>
         </Notice>
+      ) : null}
+
+      {onOpenTerminal ? (
+        <Section title={tx('terminal.openTitle')}>
+          <div className="flex flex-wrap gap-2" data-testid="terminal-open">
+            {(['claude', 'codex', 'shell'] as const).map((kind) => (
+              <Button
+                key={kind}
+                variant="secondary"
+                data-testid={`terminal-open-${kind}`}
+                onClick={() => void transport.invoke('sessions:open', { projectId, kind }).then(({ sessionId }) => onOpenTerminal(sessionId))}
+              >
+                {tx(`terminal.kind.${kind}`)}
+              </Button>
+            ))}
+          </div>
+        </Section>
       ) : null}
 
       <Section title={tx('project.what')}>

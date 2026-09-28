@@ -29,7 +29,7 @@ export class ServerStreams {
   /** Runtime state events and session output go out on their own streams. */
   bridge(bus: RuntimeBus): () => void {
     return bus.subscribe((e) => {
-      if (e.type === 'process.output') this.emit('session:output', { sessionId: sessionId(e.session), offset: e.offset, data: e.data })
+      if (e.type === 'process.output') this.emit('session:output', { sessionId: sessionId(e.session), offset: e.offset, epoch: e.epoch, data: e.data })
       else this.emit('runtime:event', e)
     })
   }

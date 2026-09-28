@@ -11,6 +11,8 @@ export const SettingsSchema = z.object({
   /** Model alias passed to `claude --model` for scans. */
   scanModel: z.string().min(1),
   recentFolders: z.array(z.string()).max(8),
+  /** Local mode: Claude Code, Codex and shell sessions keep running after Revive quits (with tmux). */
+  keepAgentsRunning: z.boolean(),
   lastFolder: z.string().nullable()
 })
 
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   detailLevel: 'simple',
   scanModel: 'haiku',
   recentFolders: [],
+  keepAgentsRunning: true,
   lastFolder: null
 }
 

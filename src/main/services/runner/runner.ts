@@ -160,6 +160,32 @@ export class Runner {
     return { ...run.state }
   }
 
+  /**
+   * A dev server that kept running while Revive was closed (Host mode, tmux):
+   * check it still answers at its recorded address, then treat it as started here.
+   */
+  async adopt(projectId: string): Promise<void> {
+    if (this.runs.has(projectId)) return
+    const ref = runRef(projectId)
+    const exited = this.deps.hub.whenExited(ref)
+    if (!exited) return
+    const { project } = await this.deps.projects.resolve(projectId)
+    const run: Run = {
+      state: { projectId, status: 'checking', url: project.run.url, port: project.run.port, reason: null, command: project.run.dev, updatedAt: new Date().toISOString() },
+      abort: new AbortController(),
+      stopping: false
+    }
+    this.runs.set(projectId, run)
+    this.set(run, {})
+    void exited.then(() => {
+      if (!run.stopping && this.runs.get(projectId) === run) this.set(run, { status: 'stopped', reason: { code: 'exited' } })
+    })
+    if (!project.run.url) return this.set(run, { status: 'running' })
+    const health = await waitHealthy(project.run.url, { deadline: Date.now() + this.timing.startTimeoutMs, signal: run.abort.signal, fetcher: this.deps.fetcher })
+    if (run.abort.signal.aborted || this.runs.get(projectId) !== run || run.state.status !== 'checking') return
+    this.set(run, health.ok ? { status: 'running' } : { status: 'broken', reason: { code: 'unknown' } })
+  }
+
   /** Everything Revive started stops: on quit, before a scan, when the folder changes. */
   async stopAll(): Promise<void> {
     await Promise.all([...this.runs.keys()].map((id) => this.stop(id)))

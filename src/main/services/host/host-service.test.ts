@@ -55,6 +55,7 @@ function make(userData: string, exec: Exec, extra: Partial<HostPlatform> = {}) {
     platform: {
       hostName: 'Studio Mac',
       exec,
+      persistentSessions: true,
       keepAwake: (on) => awake.push(on),
       loginItem: { get: () => login, set: (on) => (login = on) },
       sharingChanged: (on) => sharing.push(on),
@@ -115,6 +116,15 @@ describe('Host mode', () => {
     await host.init()
     expect(host.status().tailscale.state).toBe('missing')
     expect(sys.calls.some((c) => c.includes('serve'))).toBe(false)
+  })
+
+  it('Host mode needs tmux, and says so', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'revive-hostsvc-'))
+    const { host } = make(userData, fakeSystem({ tailscale: 'missing' }).exec, { persistentSessions: false })
+    await host.init()
+    expect(host.status().tmux).toBe(false)
+    await expect(host.setSharing(true)).rejects.toThrow(/tmux/)
+    expect(host.status().sharing).toBe(false)
   })
 
   it('pairing needs sharing; start at login goes through the platform', async () => {

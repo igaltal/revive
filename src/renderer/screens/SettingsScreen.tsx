@@ -11,6 +11,9 @@ import { useClient } from '@/state/client'
 import { useHostStatus } from '@/state/host'
 import { ConnectForm, SharingSection } from '@/components/host'
 import { Button } from '@/components/Button'
+import { Switch } from '@/components/host'
+import { SessionsCleanup } from '@/components/SessionsCleanup'
+import { useSessionsInfo } from '@/screens/TerminalScreen'
 
 function Section({ title, hint, children }: { title: ReactNode; hint: ReactNode; children: ReactNode }) {
   return (
@@ -31,6 +34,7 @@ export function SettingsScreen(): ReactNode {
   const client = useClient()
   const { host } = useHostStatus()
   const caps = transport.capabilities()
+  const sessions = useSessionsInfo()
 
   return (
     <div className="max-w-3xl">
@@ -109,6 +113,18 @@ export function SettingsScreen(): ReactNode {
       </Section>
 
       <p className="pt-4 text-xs text-muted">{tx('settings.version', { version: __APP_VERSION__ })}</p>
+      <Section title={tx('settings.keepAgents.title')} hint={tx('settings.keepAgents.hint')}>
+        <Switch
+          testId="keep-agents"
+          checked={settings.keepAgentsRunning && (sessions?.persistent ?? true)}
+          disabled={sessions !== null && !sessions.persistent}
+          onChange={(keepAgentsRunning) => update({ keepAgentsRunning })}
+          label={tx('settings.keepAgents.title')}
+        />
+        {sessions && !sessions.persistent ? <p className="text-sm text-muted">{tx('settings.keepAgents.noTmux')}</p> : null}
+        {sessions && sessions.orphans.length > 0 ? <SessionsCleanup orphans={sessions.orphans} /> : null}
+      </Section>
+
       {caps.hostControls && host ? (
         <Section title={tx('host.share.title')} hint={tx('host.share.hint', { name: host.hostName })}>
           <SharingSection host={host} />

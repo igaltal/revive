@@ -42,6 +42,8 @@ export interface HostStatus {
   }
   /** Minutes until the Mac sleeps on its own (0 = never), null if unknown. */
   sleepMinutes: number | null
+  /** tmux is installed: Host mode needs it, so sessions outlive Revive and any device can reattach. */
+  tmux: boolean
   startAtLogin: boolean
   pairing: PairingCode | null
   /** Pairing is locked after too many wrong codes, until this time. */

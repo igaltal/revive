@@ -177,7 +177,7 @@ describe('devices', () => {
     b.writeSession(sessionId, 'echo typed-on-B\n')
     await until('both outputs on both clients', () => [seenA, seenB].every((s) => s.includes('typed-on-A') && s.includes('typed-on-B')))
     expect((await a.invoke('sessions:list')).map((s) => s.sessionId)).toContain('echo:shell')
-    await b.invoke('sessions:close', { sessionId })
+    await b.invoke('sessions:close', { sessionId, confirm: true })
     a.close()
     b.close()
   })
@@ -196,7 +196,7 @@ describe('the action log', () => {
     await t.invoke('settings:set', { scanModel: SECRET })
     await t.invoke('settings:set', { scanModel: 'haiku' })
     await t.invoke('runner:stop', { projectId: 'bakery-site' })
-    await t.invoke('sessions:close', { sessionId: 'bakery-site:shell' })
+    await t.invoke('sessions:close', { sessionId: 'bakery-site:shell', confirm: true })
     t.close()
 
     const entries = host.log.latest(50)

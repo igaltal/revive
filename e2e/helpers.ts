@@ -1,7 +1,8 @@
 import { _electron as electron, type ElectronApplication } from '@playwright/test'
-import { cpSync, mkdtempSync } from 'node:fs'
+import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
 export function freshUserData(): string {
   return mkdtempSync(join(tmpdir(), 'revive-e2e-'))
@@ -21,8 +22,24 @@ export function launch(userData: string, env: Record<string, string> = {}): Prom
   const base = { ...process.env } as Record<string, string>
   return electron.launch({
     args: ['.'],
-    env: { ...base, REVIVE_USER_DATA: userData, REVIVE_TEST_AGENT: resolve('fixtures/sample-folder.manifest.json'), ...env }
+    env: { ...base, REVIVE_USER_DATA: userData, REVIVE_TEST_AGENT: resolve('fixtures/sample-folder.manifest.json'), REVIVE_TMUX_SOCKET: tmuxSocketFor(userData), ...env }
   })
+}
+
+/** Each test app gets its own tmux socket (the same one again on relaunch), never the real `revive` one. */
+export function tmuxSocketFor(userData: string): string {
+  const socket = `revive-e2e-${basename(userData).replace(/[^a-zA-Z0-9]/g, '')}`
+  sockets.add(socket)
+  return socket
+}
+const sockets = new Set<string>()
+
+/** Ends every tmux server the tests started. */
+export function killTestTmux(): void {
+  for (const s of sockets) {
+    spawnSync('tmux', ['-L', s, 'kill-server'])
+    rmSync(join(process.env['TMUX_TMPDIR'] || '/tmp', `tmux-${process.getuid?.() ?? 0}`, s), { force: true })
+  }
 }
 
 /** The native folder dialog can't be clicked by Playwright; answer it from the main process. */

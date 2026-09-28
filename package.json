@@ -13,10 +13,11 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
-    "test": "vitest run --exclude \"**/*.live.test.ts\"",
+    "test": "vitest run --exclude \"**/*.live.test.ts\" --exclude \"**/*.pty.test.ts\" && npm run test:pty",
     "test:e2e": "electron-vite build && playwright test",
     "postinstall": "electron-rebuild -f -w node-pty",
-    "test:live": "vitest run src/main/scanner/turn-limit.live.test.ts"
+    "test:live": "vitest run src/main/scanner/turn-limit.live.test.ts",
+    "test:pty": "ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.pty.config.ts"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
@@ -48,6 +49,8 @@
     "@fontsource/frank-ruhl-libre": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans-hebrew": "^5.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "i18next": "^26.4.2",
     "i18next-icu": "^2.4.4",
     "intl-messageformat": "^11.2.15",

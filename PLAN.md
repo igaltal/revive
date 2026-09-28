@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log)
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -576,3 +576,66 @@ Built to `docs/HOST_PRD.md` H1, H7, H8 and "Security and privacy". The remote cl
 - **New dependency:** `qrcode` (QR as SVG, made in main and shown as an image).
 
 *Try it on two Macs:* on the Host, Settings → Share this computer → Make it reachable (confirm the `tailscale serve` command) → Pair a device. On the other Mac, first launch → "Connect to another computer instead" (or Settings), with the https address and the code; then Allow on the Host. On one Mac: `REVIVE_USER_DATA=$(mktemp -d) npm run dev` twice, and connect the second to `http://127.0.0.1:<port>` (the port is under Technical details in the sharing section). Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M8: done (2026-09-28): tmux-backed sessions and the terminal screen
+
+Built to `docs/HOST_PRD.md` H2 (persistent sessions) and H3 (a terminal per folder). tmux 3.7c was installed with `brew install tmux`, with your OK.
+
+**1. `TmuxBackend`** (`services/sessions/tmux-backend.ts`, implements `SessionBackend`)
+- **Always `tmux -L revive -f resources/tmux.conf`.** With `-f`, tmux reads neither `~/.tmux.conf` nor the XDG config, and the separate socket never touches your own tmux sessions.
+- **The shipped config:** `status off`, `escape-time 0`, `history-limit 50000`, `default-terminal xterm-256color`, `window-size latest`, `prefix None` / `prefix2 None`, and **every key table unbound** (tmux reports zero bindings), so no keystroke is ever swallowed. Also: mouse off, no renaming, and no alternate screen for the client (`smcup@:rmcup@`), so what scrolls off goes into the viewer's own scrollback.
+- **Names:** `revive-<projectId>-<kind>` when the id is already `[a-z0-9-]`, otherwise `revive-h<10 hex of sha256>-<kind>` (Hebrew, spaces, capitals, dots).
+  - The identity is also stored on the session itself (`@revive_project`, `@revive_kind`, plus the step and command), so a new Revive maps even hashed names back. A stored identity counts only if it really produces that name.
+- **How a session starts:** `new-session -d` (in the project folder, with its environment), then **node-pty runs `tmux attach-session`**. If the session already exists, it attaches instead of starting another.
+  - **Attaching to an existing session sends its history first** (`capture-pane -p -e -J -S -`, with colours), then the live stream.
+- **The real exit status:** `tmux attach` always exits 0, so each command runs as `/bin/sh -c '"$@"; … printf status > exit file'`, no shell parsing of the command itself. The runner's "install failed" still works.
+- **After a Revive restart, the output buffer is rebuilt from `capture-pane`.**
+  - **Found and fixed here: offsets only mean something within one run of Revive.** Buffers now carry an **epoch** (in `sessions:output`, output events, WebSocket frames and `watch`).
+  - A client holding offsets from before a restart gets the rebuilt history from the start, marked `reset`, and the terminal clears before drawing it. Before this, such a client would silently have received nothing.
+
+**2. Lifetime**
+- **Closing a terminal view detaches** (going back, closing a tab, the window closing): the session keeps running.
+- **"End session"** asks first ("Claude Code stops, with anything still running in it. To leave it running, just go back instead.") and then kills the tmux session; the contract needs `{ confirm: true }`.
+- **Host mode:** every kind survives Revive quitting, dev servers included. After a restart, `runner.adopt()` checks the dev server still answers at the address recorded in the manifest, then shows it as running.
+- **Local mode:** dev servers stop on quit as before. Claude Code, Codex and shells survive when **"Keep agents running after Revive quits"** is on (Settings, on by default).
+- **On startup,** Revive lists the sessions on its socket and takes over those of known projects. Sessions whose project isn't in the list appear in **Settings → Sessions left running**, and are ended only with **End** plus a confirmation.
+
+**3. No tmux**
+- Revive falls back to the direct node-pty backend. The terminal screen shows one line: "Sessions stop when Revive quits. To keep them running, install tmux: `brew install tmux`".
+- The "Keep agents running" switch is off, with the reason.
+- **Host mode requires tmux:** the sharing switch is disabled with "Host mode needs tmux, so sessions keep running for your devices. Install it with: `brew install tmux`", and the service refuses too.
+- `REVIVE_TMUX=none` simulates this in development.
+
+**4. Terminal screen** (xterm.js 6 plus the fit add-on)
+- **Opening one:** the project page has **Open a terminal here → Claude Code / Codex / Terminal**, which calls `sessions:open` (from M7).
+- **Tabs:** one per open session of that project, including "Running project" for the dev server's session, kept current from the event stream.
+- **Size and typing:** the terminal fits its box, and every size change goes through the transport (`session:resize`), as do keystrokes. It reads the session's buffer first, then streams live, **the same way locally and in client mode**. It is always laid out left to right.
+- **Font:** IBM Plex Mono, then SF Mono or Menlo, then **Arial Hebrew / IBM Plex Sans Hebrew** for Hebrew.
+- **Hebrew inside the terminal renders left to right:** xterm.js has no bidi. As agreed, it's noted, not fixed ("Hebrew inside the terminal is shown left to right" under Technical details). Checked on screen: `echo "שלום מהטרמינל"` shows reversed.
+
+**Architecture note: one tmux client per session.**
+- Revive's main process attaches once per session, and every viewer (this window, and paired devices via the Host server) watches that one stream.
+- So **the window size is whichever client resized last** (`window-size latest`); tested with two clients at 100×30, 60×20 and 120×40.
+- **tmux output is screen rendering,** not a log: a resize or an attach redraws the screen, so lines can come round again. That's right for a terminal, and it's also what the runner's port detection now reads (tested: Vite-style output detected through tmux).
+
+**5. Tests.** `npm test` now runs two passes: 221 regular tests, plus **5 real-tmux tests** (`*.pty.test.ts`) under Electron in Node mode, because node-pty is built for Electron's ABI. Then 8 Electron e2e tests. Every test uses its own tmux socket and removes it afterwards; the real `revive` socket is never touched (checked).
+- **Real quit and relaunch** (e2e):
+  1. A Claude Code stand-in (a tick every second, logged with the time) runs from the project page; typing reaches it.
+  2. `app.close()` (local mode, "keep agents" on): the tmux session is still there and the stand-in keeps ticking while Revive is closed.
+  3. Relaunch: Revive takes the session over, and the terminal shows **"agent tick 1"** (the earlier output) and carries on. Its own clock shows no gap over 2 s.
+  4. **End session** kills it.
+- **A client drops in the middle of output** (real tmux, the Host server, WsTransport): the connection is cut every 100 ms for 1.5 s. The agent's own clock shows **no pause** (max gap < 500 ms), every tick printed meanwhile reaches the client, and every byte arrives once, in order, with no gaps.
+- **Two clients with different window sizes** on one session: both see the output; the session takes the latest size.
+- **A hostile `~/.tmux.conf`:** a stand-in HOME and XDG config with `prefix C-a`, `status on`, `history-limit 10`, `default-terminal screen`, and a root binding that turns "x" into "y". None of it applies (status off, prefix None, 50,000 lines, xterm-256color, no bindings), and typing "xax" arrives as "xax". Your real home is never touched.
+- **Hebrew and spaced project ids** map to valid names and back, stable, with no collisions, including through real tmux and a fresh backend.
+- **Missing tmux falls back** (e2e with `REVIVE_TMUX=none`): the banner, a working direct shell, and Host mode saying it needs tmux.
+- **Orphans are listed, not killed:** a session for a project that's gone stays alive after startup, appears in the list, and ends only via `endOrphan`.
+- Also: the real exit status through the wrapper (3 stays 3); the epoch (restarting a buffer resets the client); the renderer terminal and settings (keystrokes and size through the transport, reset on a new epoch, going back only detaches, ending asks first, the no-tmux banner, the orphan list with confirmation, the keep-agents switch).
+
+**Notes for you**
+- **Opening Claude Code or Codex when it isn't installed:** the session ends at once ("command not found" flashes in the terminal). Checking first against the prerequisite report would be a small follow-up.
+- **Packaging** must include `resources/tmux.conf` (as well as the menu bar icons from M7). There's still no packaging setup.
+- **Development-only stand-ins:** `REVIVE_AGENT_CLAUDE` / `REVIVE_AGENT_CODEX=<script>` and `REVIVE_TMUX_SOCKET` are honoured only in unpackaged builds.
+- **Not tested for real:** a sleeping Mac with a session running, and a remote device resizing from a real second screen (the protocol path is tested; the second screen isn't).
+
+*Try it:* `npm run dev` → a project → Open a terminal here → Terminal (or Claude Code). Quit Revive, open it again, and the same terminal is still there with its history. `tmux -L revive ls` lists Revive's sessions; your own `tmux ls` never shows them. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.

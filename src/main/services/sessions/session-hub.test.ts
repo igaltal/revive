@@ -11,6 +11,12 @@ function manualBackend() {
   let exit: (e: SessionExit) => void = () => {}
   const backend: SessionBackend = {
     kind: 'pty',
+    persistent: false,
+    list: async () => [],
+    attach: () => {
+      throw new Error('no')
+    },
+    end: async () => {},
     spawn(spec): SessionHandle {
       return {
         ref: spec.ref,
@@ -18,6 +24,7 @@ function manualBackend() {
         resize: () => {},
         onData: (l) => ((push = l), () => {}),
         onExit: (l) => ((exit = l), () => {}),
+        detach: async () => {},
         kill: async () => {
           const e = { exitCode: null, signal: 'SIGTERM' }
           exit(e)
@@ -83,7 +90,9 @@ describe('session output', () => {
     m.push('one\n')
     m.push('two\n')
     const all = hub.output('p:run', 0)
-    expect(all).toEqual({ sessionId: 'p:run', data: '$ npm run dev\r\none\ntwo\n', fromOffset: 0, nextOffset: 23, truncated: false })
+    expect(all).toEqual({ sessionId: 'p:run', epoch: expect.stringMatching(/^[0-9a-f]{12}$/), data: '$ npm run dev\r\none\ntwo\n', fromOffset: 0, nextOffset: 23, truncated: false })
+    // An offset from another lifetime (before a restart) starts over from this one, marked.
+    expect(hub.output('p:run', 19, 'old-epoch')).toMatchObject({ fromOffset: 0, truncated: true, data: '$ npm run dev\r\none\ntwo\n' })
     expect(offsets).toEqual([0, 15, 19])
     expect(hub.output('p:run', 19).data).toBe('two\n')
     expect(hub.output('p:shell', 0)).toMatchObject({ data: '', nextOffset: 0 })
@@ -117,7 +126,7 @@ describe('runtime bus', () => {
     const bus = new RuntimeBus(3)
     for (let i = 0; i < 5; i++) {
       bus.emit({ type: 'manifest.changed' })
-      bus.emitOutput({ session: { projectId: 'p', kind: 'run' }, data: 'x', offset: i })
+      bus.emitOutput({ session: { projectId: 'p', kind: 'run' }, data: 'x', offset: i, epoch: 'e1' })
     }
     expect(bus.since(0).map((e) => e.seq)).toEqual([3, 4, 5])
     expect(bus.since(4).map((e) => e.seq)).toEqual([5])

@@ -25,6 +25,12 @@ function killGroup(pid: number, signal: NodeJS.Signals): void {
 /** Sessions run as direct children of Revive in a pseudo-terminal. They end when Revive ends. */
 export const ptyBackend: SessionBackend = {
   kind: 'pty',
+  persistent: false,
+  list: async () => [],
+  attach: () => {
+    throw new Error('Direct terminal sessions end with Revive; there is nothing to attach to')
+  },
+  end: async () => {},
   spawn(spec: SessionSpec): SessionHandle {
     const term = pty.spawn(spec.file, spec.args, {
       name: 'xterm-256color',
@@ -60,6 +66,9 @@ export const ptyBackend: SessionBackend = {
         }
         exitListeners.add(listener)
         return () => exitListeners.delete(listener)
+      },
+      detach: async () => {
+        await handle.kill()
       },
       kill: () =>
         new Promise<SessionExit>((resolve) => {

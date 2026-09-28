@@ -232,7 +232,14 @@ export function SharingSection({ host }: { host: HostStatus }): ReactNode {
 
   return (
     <div className="flex flex-col gap-5" data-testid="sharing">
-      <Switch checked={host.sharing} testId="sharing-switch" onChange={(on) => void transport.invoke('host:setSharing', { on })} label={tx('host.share.switch')} />
+      <Switch checked={host.sharing} testId="sharing-switch" disabled={!host.tmux && !host.sharing} onChange={(on) => void transport.invoke('host:setSharing', { on })} label={tx('host.share.switch')} />
+      {!host.tmux ? (
+        <Notice tone="attention" testId="sharing-needs-tmux">
+          <p className="flex flex-wrap items-center gap-2">
+            {tx('host.share.needsTmux')} <code dir="ltr" className="rounded bg-bg px-1.5 py-0.5 font-mono text-[13px]">brew install tmux</code>
+          </p>
+        </Notice>
+      ) : null}
 
       {host.sharing ? (
         <>

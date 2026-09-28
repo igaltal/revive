@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { SESSION_OUTPUT_BYTES } from '@shared/runtime'
 
 /**
@@ -7,6 +8,11 @@ import { SESSION_OUTPUT_BYTES } from '@shared/runtime'
  * process behind the session.
  */
 export class OutputBuffer {
+  /**
+   * This buffer's lifetime. Offsets only mean something within one epoch: after
+   * a Revive restart the buffer is rebuilt (from tmux's history) under a new one.
+   */
+  readonly epoch = randomBytes(6).toString('hex')
   private chunks: Array<{ start: number; bytes: Buffer }> = []
   private size = 0
   private end = 0

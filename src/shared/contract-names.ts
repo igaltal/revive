@@ -44,6 +44,8 @@ export const METHOD_NAMES = [
   'sessions:open',
   'sessions:close',
   'sessions:list',
+  'sessions:info',
+  'sessions:endOrphan',
   'host:status',
   'host:setSharing',
   'host:setStartAtLogin',

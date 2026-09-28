@@ -12,7 +12,7 @@ export const CLOSE_REVOKED = 4401
 export type ClientMessage =
   | { t: 'call'; id: number; m: string; i: unknown }
   /** Start streaming a session's output from `o` (bytes); the server first sends what's buffered. */
-  | { t: 'watch'; s: string; o: number }
+  | { t: 'watch'; s: string; o: number; e?: string }
   | { t: 'unwatch'; s: string }
   | { t: 'input'; s: string; d: string }
   | { t: 'resize'; s: string; c: number; r: number }
@@ -32,6 +32,8 @@ export interface OutputFrameHeader {
   s: string
   /** Where the data starts in the session buffer (bytes). */
   o: number
+  /** The buffer's lifetime. */
+  e: string
   /** Output before `o` that this client hadn't seen was dropped from the buffer. */
   tr?: boolean
 }

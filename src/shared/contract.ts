@@ -142,6 +142,7 @@ export const StateEventSchema = z.discriminatedUnion('type', [
 
 export const SessionOutputSchema = z.object({
   sessionId: z.string(),
+  epoch: z.string(),
   data: z.string(),
   fromOffset: z.number().int().min(0),
   nextOffset: z.number().int().min(0),
@@ -152,9 +153,13 @@ export const SessionOutputSchema = z.object({
 export const SessionChunkSchema = z.object({
   sessionId: z.string(),
   offset: z.number().int().min(0),
+  /** The buffer's lifetime: a new one after Revive restarts (rebuilt from tmux's history). */
+  epoch: z.string(),
   data: z.string(),
   /** True when output before `offset` was skipped (dropped from the buffer while this client was behind). */
-  truncated: z.boolean().optional()
+  truncated: z.boolean().optional(),
+  /** Set by a client transport when the buffer started over: a terminal should clear before writing this. */
+  reset: z.boolean().optional()
 })
 export type SessionChunk = z.infer<typeof SessionChunkSchema>
 
@@ -183,6 +188,16 @@ const RestoreResultSchema = z.discriminatedUnion('ok', [
 
 const TrashInfoSchema = z.object({ items: z.number().int(), bytes: z.number().int() }) satisfies z.ZodType<TrashInfo>
 
+export const SessionsInfoSchema = z.object({
+  backend: z.enum(['tmux', 'pty']),
+  /** Sessions outlive Revive. */
+  persistent: z.boolean(),
+  tmuxVersion: z.string().nullable(),
+  /** Left running from earlier, for projects that aren't in the list any more. */
+  orphans: z.array(z.object({ name: z.string(), projectId: z.string().nullable(), kind: z.string().nullable(), createdAt: z.string().nullable() }))
+})
+export type SessionsInfo = z.infer<typeof SessionsInfoSchema>
+
 const SessionInfoSchema = z.object({ sessionId: z.string(), projectId: z.string(), kind: z.enum(SESSION_KINDS), step: RunStep })
 
 export const PairingCodeSchema = z.object({ code: z.string(), expiresAt: Iso, link: z.string(), qrSvg: z.string() }) satisfies z.ZodType<PairingCode>
@@ -193,6 +208,7 @@ export const HostStatusSchema = z.object({
   hostName: z.string(),
   tailscale: z.object({ state: z.enum(['missing', 'available', 'serving', 'error']), address: z.string().nullable(), detail: z.string().optional() }),
   sleepMinutes: z.number().int().nullable(),
+  tmux: z.boolean(),
   startAtLogin: z.boolean(),
   pairing: PairingCodeSchema.nullable(),
   lockedUntil: Iso.nullable(),
@@ -294,7 +310,7 @@ export const METHODS = {
   /** State events after `seq`, for a client that (re)connects. Output is not replayed. */
   'runtime:since': remote(z.object({ seq: z.number().int().min(0) }), z.array(StateEventSchema)),
   /** A session's output after `fromOffset` (bytes), from its buffer (last 256 KB). */
-  'sessions:output': remote(z.object({ sessionId: SessionIdSchema, fromOffset: z.number().int().min(0) }), SessionOutputSchema),
+  'sessions:output': remote(z.object({ sessionId: SessionIdSchema, fromOffset: z.number().int().min(0), epoch: z.string().max(40).optional() }), SessionOutputSchema),
   // The native preview, laid over the renderer at `bounds` (window coordinates).
   'preview:show': localOnly(z.object({ projectId: ProjectId, bounds: BoundsSchema, device: z.enum(['desktop', 'phone']) }), None),
   'preview:hide': localOnly(None, None),
@@ -322,8 +338,13 @@ export const METHODS = {
 
   // Interactive terminals: a shell, Claude Code or Codex in a project's folder. One per project and kind.
   'sessions:open': remote(z.object({ projectId: ProjectId, kind: z.enum(['shell', 'claude', 'codex']) }), z.object({ sessionId: z.string(), created: z.boolean() }), M),
-  'sessions:close': remote(z.object({ sessionId: SessionIdSchema }), None, M),
+  /** Ends the session and what runs in it (closing a terminal view only detaches). Only after the user confirmed. */
+  'sessions:close': remote(z.object({ sessionId: SessionIdSchema, confirm: z.literal(true) }), None, M),
   'sessions:list': remote(None, z.array(SessionInfoSchema)),
+  /** Whether sessions outlive Revive (tmux), and sessions whose project is gone. */
+  'sessions:info': remote(None, SessionsInfoSchema),
+  /** Ends a session whose project is gone. Never done without the user asking. */
+  'sessions:endOrphan': remote(z.object({ name: z.string().regex(/^revive-[a-z0-9-]+$/).max(120), confirm: z.literal(true) }), SessionsInfoSchema, M),
 
   // Host mode: this computer shared with paired devices. Only on the Host itself.
   'host:status': appOnly(None, HostStatusSchema),

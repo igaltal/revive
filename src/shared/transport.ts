@@ -19,6 +19,13 @@ export type InvokeArgs<M extends MethodName> = undefined extends MethodInput<M> 
 export type EventStreamName = Exclude<ServerStreamName, 'session:output'>
 
 /** `rejected`: the Host no longer accepts this device (revoked); it won't retry. */
+/** Where to start watching a session: an offset, in a buffer lifetime if known. */
+export interface WatchFrom {
+  sessionId: string
+  fromOffset: number
+  epoch?: string
+}
+
 export type ConnectionState = 'open' | 'reconnecting' | 'rejected'
 
 /**
@@ -31,7 +38,7 @@ export interface Transport {
   invoke<M extends MethodName>(method: M, ...input: InvokeArgs<M>): Promise<MethodOutput<M>>
   subscribe<S extends EventStreamName>(stream: S, handler: (payload: ServerStreamPayload<S>) => void): () => void
   /** A session's output from `fromOffset` on: first what's buffered, then live, with no gaps or repeats. */
-  subscribe(stream: 'session:output', handler: (chunk: SessionChunk) => void, from: { sessionId: string; fromOffset: number }): () => void
+  subscribe(stream: 'session:output', handler: (chunk: SessionChunk) => void, from: WatchFrom): () => void
   writeSession(sessionId: string, data: string): void
   resizeSession(sessionId: string, cols: number, rows: number): void
   /** A URL this client can load for an asset path from main (e.g. `/shots/x.png?v=1`). */
@@ -61,6 +68,8 @@ const decoder = new TextDecoder()
 interface Watcher {
   /** The next byte this client needs. */
   next: number
+  /** The buffer lifetime `next` belongs to; unknown until the first chunk. */
+  epoch: string | undefined
   handlers: Set<(chunk: SessionChunk) => void>
   /** While the buffer is being read, live output waits here. */
   queue: SessionChunk[] | null
@@ -85,7 +94,7 @@ export abstract class BaseTransport implements Transport {
   protected abstract call(method: MethodName, input: unknown): Promise<unknown>
   protected abstract post<S extends ClientStreamName>(stream: S, payload: ClientStreamPayload<S>): void
   /** Starts receiving a session's output from `fromOffset` (buffered first, then live). */
-  protected abstract startWatch(sessionId: string, fromOffset: number): void
+  protected abstract startWatch(sessionId: string, fromOffset: number, epoch: string | undefined): void
   protected abstract stopWatch(sessionId: string): void
   abstract assetUrl(path: string): string
   abstract capabilities(): Capabilities
@@ -95,17 +104,17 @@ export abstract class BaseTransport implements Transport {
   }
 
   subscribe<S extends EventStreamName>(stream: S, handler: (payload: ServerStreamPayload<S>) => void): () => void
-  subscribe(stream: 'session:output', handler: (chunk: SessionChunk) => void, from: { sessionId: string; fromOffset: number }): () => void
-  subscribe(stream: ServerStreamName, handler: (payload: never) => void, from?: { sessionId: string; fromOffset: number }): () => void {
+  subscribe(stream: 'session:output', handler: (chunk: SessionChunk) => void, from: WatchFrom): () => void
+  subscribe(stream: ServerStreamName, handler: (payload: never) => void, from?: WatchFrom): () => void {
     if (stream === 'session:output') {
       if (!from) throw new Error('session:output needs { sessionId, fromOffset }')
       const { sessionId } = from
       let w = this.watchers.get(sessionId)
       const h = handler as (c: SessionChunk) => void
       if (!w) {
-        w = { next: Math.max(0, from.fromOffset), handlers: new Set([h]), queue: null }
+        w = { next: Math.max(0, from.fromOffset), epoch: from.epoch, handlers: new Set([h]), queue: null }
         this.watchers.set(sessionId, w)
-        this.startWatch(sessionId, w.next)
+        this.startWatch(sessionId, w.next, w.epoch)
       } else {
         // A second watcher of the same session joins at the current point.
         w.handlers.add(h)
@@ -154,7 +163,7 @@ export abstract class BaseTransport implements Transport {
     } finally {
       this.held = null
     }
-    for (const [id, w] of this.watchers) this.startWatch(id, w.next)
+    for (const [id, w] of this.watchers) this.startWatch(id, w.next, w.epoch)
     this.setConnection('open')
   }
 
@@ -184,11 +193,11 @@ export abstract class BaseTransport implements Transport {
     const w = this.watchers.get(sessionId)
     if (!w || w.queue) return
     w.queue = []
-    void (this.call('sessions:output', { sessionId, fromOffset: w.next }) as Promise<{ data: string; fromOffset: number; truncated: boolean }>).then(
+    void (this.call('sessions:output', { sessionId, fromOffset: w.next, ...(w.epoch ? { epoch: w.epoch } : {}) }) as Promise<{ epoch: string; data: string; fromOffset: number; truncated: boolean }>).then(
       (out) => {
         const queued = w.queue ?? []
         w.queue = null
-        this.applyChunk(w, sessionId, { sessionId, offset: out.fromOffset, data: out.data, truncated: out.truncated })
+        this.applyChunk(w, sessionId, { sessionId, offset: out.fromOffset, epoch: out.epoch, data: out.data, truncated: out.truncated })
         for (const c of queued) this.applyChunk(w, sessionId, c)
       },
       () => {
@@ -207,9 +216,16 @@ export abstract class BaseTransport implements Transport {
   }
 
   private applyChunk(w: Watcher, sessionId: string, chunk: SessionChunk): void {
+    // A new buffer lifetime (Revive restarted and rebuilt it from tmux): start over from it.
+    let reset = false
+    if (w.epoch !== undefined && chunk.epoch !== w.epoch) {
+      reset = true
+      w.next = 0
+    }
+    w.epoch = chunk.epoch
     const bytes = encoder.encode(chunk.data)
     const end = chunk.offset + bytes.length
-    if (end <= w.next && !(chunk.truncated && chunk.offset > w.next)) return // already seen
+    if (!reset && end <= w.next && !(chunk.truncated && chunk.offset > w.next)) return // already seen
     let { offset, data } = chunk
     let truncated = chunk.truncated === true
     if (offset < w.next) {
@@ -219,7 +235,7 @@ export abstract class BaseTransport implements Transport {
       truncated = true // what was between is no longer in the buffer
     }
     w.next = Math.max(w.next, end)
-    const out: SessionChunk = truncated ? { sessionId, offset, data, truncated } : { sessionId, offset, data }
+    const out: SessionChunk = { sessionId, offset, epoch: chunk.epoch, data, ...(truncated ? { truncated } : {}), ...(reset ? { reset } : {}) }
     for (const h of w.handlers) h(out)
   }
 
