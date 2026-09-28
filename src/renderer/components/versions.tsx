@@ -15,9 +15,11 @@ import { UndoIcon } from './icons'
 /** A plain title for a saved version, in the interface language. */
 export function VersionTitle({ version, versions }: { version: VersionSummary; versions: VersionSummary[] }): ReactNode {
   const { tx, lang } = useT()
+  const name = useProjectName()
   if (version.kind === 'restore') {
     const from = versions.find((v) => v.id === version.restoredFrom)
-    return from ? tx('history.title.restore', { date: new Date(from.createdAt) }) : tx('history.title.restoreUnknown')
+    if (!from) return tx('history.title.restoreUnknown')
+    return version.scope ? tx('history.title.restoreProject', { date: new Date(from.createdAt), name: name(version.scope) }) : tx('history.title.restore', { date: new Date(from.createdAt) })
   }
   if (version.kind === 'undo') return tx('history.title.undo')
   return lang === 'he' ? version.title.he : version.title.en
@@ -33,7 +35,7 @@ function useProjectName(): (id: string) => string {
  * sentence is true: how many files go back, how many move to the trash,
  * and what stops.
  */
-export function RestoreDialog({ version, onClose }: { version: VersionSummary | null; onClose: () => void }): ReactNode {
+export function RestoreDialog({ version, projectId, onClose }: { version: VersionSummary | null; projectId?: string; onClose: () => void }): ReactNode {
   const { t, tx } = useT()
   const name = useProjectName()
   // Answers are kept with the version they belong to, so an old one never shows for a new choice.
@@ -46,18 +48,18 @@ export function RestoreDialog({ version, onClose }: { version: VersionSummary | 
   useEffect(() => {
     if (!version) return
     let alive = true
-    void transport.invoke('versions:preview', { versionId: version.id }).then((p) => {
+    void transport.invoke('versions:preview', { versionId: version.id, ...(projectId ? { projectId } : {}) }).then((p) => {
       if (alive) setAnswer(p ? { id: version.id, preview: p } : { id: version.id, problem: 'not_found' })
     })
     return () => {
       alive = false
     }
-  }, [version])
+  }, [version, projectId])
 
   const confirm = async () => {
     if (!version) return
     setWorking(true)
-    const r = await transport.invoke('versions:restore', { versionId: version.id })
+    const r = await transport.invoke('versions:restore', { versionId: version.id, ...(projectId ? { projectId } : {}) })
     setWorking(false)
     if (r.ok) onClose()
     else setAnswer({ id: version.id, problem: r.code })
@@ -89,6 +91,9 @@ export function RestoreDialog({ version, onClose }: { version: VersionSummary | 
         <p className="text-muted">{tx('history.restoreDialog.loading')}</p>
       ) : (
         <>
+          <p data-testid="restore-scope" data-scope={projectId ? 'project' : 'folder'} className="font-medium">
+            {projectId ? tx('history.restoreDialog.scopeProject', { name: name(projectId) }) : tx('history.restoreDialog.scopeFolder')}
+          </p>
           <p data-testid="restore-summary">
             {tx('history.restoreDialog.changed', { count: preview.changedFiles })}
             {preview.newFiles > 0 ? <> {tx('history.restoreDialog.newFiles', { count: preview.newFiles })}</> : null}
@@ -139,9 +144,11 @@ export function RestoreDone({ restore }: { restore: LastRestore }): ReactNode {
       <p>
         {restore.how === 'undo'
           ? tx('history.undone', { count: restore.changedFiles })
-          : target
-            ? tx('history.done', { date: new Date(target.createdAt), count: restore.changedFiles })
-            : tx('history.doneUnknown', { count: restore.changedFiles })}
+          : target && restore.projectId
+            ? tx('history.doneProject', { name: name(restore.projectId), date: new Date(target.createdAt), count: restore.changedFiles })
+            : target
+              ? tx('history.done', { date: new Date(target.createdAt), count: restore.changedFiles })
+              : tx('history.doneUnknown', { count: restore.changedFiles })}
       </p>
       {restore.stoppedProjects
         .filter((id) => !started.includes(id))

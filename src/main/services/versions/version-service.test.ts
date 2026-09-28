@@ -149,6 +149,68 @@ describe('going back to a saved version', () => {
   })
 })
 
+describe('going back for one project', () => {
+  it('reverts only that project; the other stays byte for byte, keeps running, and undo keeps the same scope', async () => {
+    const t = await setup()
+    const v1 = await t.service.save()
+    write(t.folder, 'bakery/index.html', '<h1>Bakery v2</h1>')
+    write(t.folder, 'bakery/extra.html', 'new in bakery')
+    write(t.folder, 'habits/index.html', '<h1>Habits v2</h1>')
+    write(t.folder, 'habits/extra.html', 'new in habits')
+    const habitsBefore = { index: readFileSync(join(t.folder, 'habits/index.html')), extra: readFileSync(join(t.folder, 'habits/extra.html')) }
+
+    const preview = await t.service.preview({ versionId: v1.id, projectId: 'bakery' })
+    expect(preview).toMatchObject({ projectId: 'bakery', changedFiles: 1, newFiles: 1, willStop: ['bakery'] })
+
+    const r = await t.service.restore({ versionId: v1.id, projectId: 'bakery' })
+    if (!r.ok) throw new Error(r.code)
+    expect(r.projectId).toBe('bakery')
+    expect(read(t.folder, 'bakery/index.html')).toBe('<h1>Bakery v1</h1>')
+    expect(existsSync(join(t.folder, 'bakery/extra.html'))).toBe(false)
+    // The other project: exactly the same bytes, and not stopped.
+    expect(readFileSync(join(t.folder, 'habits/index.html')).equals(habitsBefore.index)).toBe(true)
+    expect(readFileSync(join(t.folder, 'habits/extra.html')).equals(habitsBefore.extra)).toBe(true)
+    expect(t.stopped).toEqual(['bakery'])
+    expect(r.stoppedProjects).toEqual(['bakery'])
+    const stored = JSON.parse(read(t.folder, '.revive/manifest.json')) as Manifest
+    expect(stored.projects.find((p) => p.id === 'habits')!.status).toBe('verified')
+    expect(t.events.at(-1)).toMatchObject({ type: 'version.restored', projectId: 'bakery' })
+    expect((await t.service.list())[0]).toMatchObject({ kind: 'restore', scope: 'bakery' })
+
+    // Undo from anywhere (History included) keeps the scope: habits is untouched again.
+    write(t.folder, 'habits/index.html', '<h1>Habits v3</h1>')
+    const u = await t.service.undo({ versionId: r.undoVersionId })
+    if (!u.ok) throw new Error(u.code)
+    expect(u.projectId).toBe('bakery')
+    expect(read(t.folder, 'bakery/index.html')).toBe('<h1>Bakery v2</h1>')
+    expect(read(t.folder, 'bakery/extra.html')).toBe('new in bakery')
+    expect(read(t.folder, 'habits/index.html')).toBe('<h1>Habits v3</h1>')
+  })
+
+  it("keeps a nested project's files out of its parent's go back", async () => {
+    const t = await setup()
+    // A project inside another one's folder.
+    const m = manifest()
+    m.projects.push({ ...structuredClone(m.projects[0]!), id: 'bakery-admin', path: 'bakery/admin' })
+    await writeManifest(t.folder, m)
+    write(t.folder, 'bakery/admin/index.html', 'admin v1')
+    const v1 = await t.service.save()
+    write(t.folder, 'bakery/index.html', '<h1>Bakery v2</h1>')
+    write(t.folder, 'bakery/admin/index.html', 'admin v2')
+    const r = await t.service.restore({ versionId: v1.id, projectId: 'bakery' })
+    expect(r.ok).toBe(true)
+    expect(read(t.folder, 'bakery/index.html')).toBe('<h1>Bakery v1</h1>')
+    expect(read(t.folder, 'bakery/admin/index.html')).toBe('admin v2')
+  })
+
+  it('refuses an unknown project', async () => {
+    const t = await setup()
+    const v1 = await t.service.save()
+    expect(await t.service.restore({ versionId: v1.id, projectId: 'nope' })).toMatchObject({ ok: false, code: 'not_found' })
+    expect(await t.service.preview({ versionId: v1.id, projectId: 'nope' })).toBeNull()
+  })
+})
+
 describe('the trash', () => {
   it('is emptied only with an explicit confirmation, and says so on the stream', async () => {
     const t = await setup()

@@ -95,7 +95,16 @@ type StateEventBody =
    * before, so the restore itself can be undone. `stoppedProjects` were running
    * and were stopped for it; clients offer to start them again.
    */
-  | { type: 'version.restored'; how: 'restore' | 'undo'; versionId: string; undoVersionId: string; changedFiles: number; stoppedProjects: string[] }
+  | {
+      type: 'version.restored'
+      how: 'restore' | 'undo'
+      versionId: string
+      undoVersionId: string
+      /** Set when only this project went back; absent for the whole folder. */
+      projectId?: string
+      changedFiles: number
+      stoppedProjects: string[]
+    }
   | { type: 'trash.emptied'; removedItems: number }
 
 export type StateEventInput = StateEventBody

@@ -49,6 +49,9 @@ describe('History', () => {
     const dialog = await screen.findByTestId('restore-dialog')
     expect(within(dialog).getByTestId('restore-summary').textContent).toBe("3 files will go back the way they were. 1 file made since then will move to Revive's trash.")
     expect(dialog.textContent).toContain('First, Revive will stop: Sunrise Bakery.')
+    // From History, the whole folder goes back, and the dialog says so.
+    expect(within(dialog).getByTestId('restore-scope').textContent).toBe('The whole folder goes back, with every project in it.')
+    expect(mock.calls.find((c) => c.channel === 'versions:preview')?.args).toEqual({ versionId: VERSIONS[1]!.id })
     expect(mock.calls.some((c) => c.channel === 'versions:restore')).toBe(false)
 
     fireEvent.click(within(dialog).getByTestId('restore-confirm'))

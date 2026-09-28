@@ -208,6 +208,8 @@ test('go back to a saved version and undo it: preview hidden under dialogs, proj
   const dialog = win.getByTestId('restore-dialog')
   await expect(dialog.getByTestId('restore-summary')).toHaveText("1 file will go back the way it was. 1 file made since then will move to Revive's trash.")
   await expect(dialog).toContainText('First, Revive will stop: Sunrise Bakery.')
+  // From a project page, only that project goes back.
+  await expect(dialog.getByTestId('restore-scope')).toHaveText('Only Sunrise Bakery goes back. The other projects in the folder stay exactly as they are.')
   expect(await nativeViews()).toBe(0)
   await dialog.getByTestId('restore-confirm').click()
 

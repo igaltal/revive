@@ -223,7 +223,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           <p>{tx('history.empty')}</p>
         )}
       </Dialog>
-      <RestoreDialog version={chosen} onClose={() => setChosen(null)} />
+      <RestoreDialog version={chosen} projectId={projectId} onClose={() => setChosen(null)} />
     </div>
   )
 }

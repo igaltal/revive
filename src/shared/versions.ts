@@ -17,6 +17,8 @@ export interface VersionRecord {
   parts: VersionPart[]
   /** For restores: the version that was brought back. */
   restoredFrom?: string
+  /** For restores limited to one project: its id. Undo uses the same scope. */
+  scope?: string
 }
 
 /** What clients see of a saved version: no commits, no paths inside git. */
@@ -27,11 +29,13 @@ export interface VersionSummary {
   createdAt: string
   /** 'restore' and 'undo' versions: the version that was brought back right after this one was saved. */
   restoredFrom?: string
+  /** Set when that go back was limited to one project. */
+  scope?: string
 }
 
 export function summarize(record: VersionRecord): VersionSummary {
-  const { id, title, kind, createdAt, restoredFrom } = record
-  return { id, title, kind, createdAt, ...(restoredFrom ? { restoredFrom } : {}) }
+  const { id, title, kind, createdAt, restoredFrom, scope } = record
+  return { id, title, kind, createdAt, ...(restoredFrom ? { restoredFrom } : {}), ...(scope ? { scope } : {}) }
 }
 
 /** Version ids as Revive makes them: v-20260928T101500Z-ab12c */
@@ -40,6 +44,8 @@ export const VERSION_ID = /^v-\d{8}T\d{6}Z-[a-z0-9]{1,8}$/
 /** What going back to a version would do, shown before the user confirms. */
 export interface RestorePreview {
   versionId: string
+  /** The one project that goes back; absent for the whole folder. */
+  projectId?: string
   /** Files that will be put back the way they were. */
   changedFiles: number
   /** Files made since then, which will be moved to the trash. */
@@ -56,6 +62,8 @@ export type RestoreResult =
   | {
       ok: true
       versionId: string
+      /** The one project that went back; absent for the whole folder. */
+      projectId?: string
       /** Saved just before; going back to it undoes this restore. */
       undoVersionId: string
       changedFiles: number

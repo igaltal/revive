@@ -8,7 +8,11 @@ import { readManifest, updateProject } from '../../manifest-store'
 import { emptyTrash, moveAside, planRestore, readVersions, restoreFiles, saveVersion, snapshotParts, trashInfo } from '../../versions/snapshot'
 
 /** Inputs are checked here, whichever transport they came through. Bad input rejects; it never throws synchronously. */
-export const VersionInput = z.object({ versionId: z.string().regex(VERSION_ID) })
+export const VersionInput = z.object({
+  versionId: z.string().regex(VERSION_ID),
+  /** Only this project's files go back; the rest of the folder stays as it is. */
+  projectId: z.string().min(1).max(80).optional()
+})
 export const EmptyTrashInput = z.object({ confirm: z.literal(true) })
 
 export const RESTORE_TITLE = { en: 'Before going back to an earlier version', he: 'לפני החזרה לגרסה קודמת' }
@@ -28,6 +32,18 @@ const RUNNING = new Set(['installing', 'starting', 'checking', 'running'])
 
 /** A project is touched by a change when the path is inside its folder. */
 const touches = (p: Project, rel: string) => p.path === '.' || rel === p.path || rel.startsWith(`${p.path}/`)
+
+/** The project a file belongs to: the deepest one whose folder holds it (nested projects keep their own files). */
+function ownerOf(projects: Project[], rel: string): Project | undefined {
+  return projects.filter((p) => touches(p, rel)).sort((a, b) => (b.path === '.' ? 0 : b.path.length) - (a.path === '.' ? 0 : a.path.length))[0]
+}
+
+/** Keeps only the files of one project, when the go back is limited to it. */
+function scoped<T extends { write: string[]; remove: string[] }>(plan: T, projects: Project[], projectId: string | undefined): T {
+  if (!projectId) return plan
+  const mine = (rel: string) => ownerOf(projects, rel)?.id === projectId
+  return { ...plan, write: plan.write.filter(mine), remove: plan.remove.filter(mine) }
+}
 
 /**
  * Saved versions: list, save, go back, undo, and the trash. Plain TypeScript;
@@ -53,17 +69,18 @@ export class VersionService {
 
   /** What going back would change. Nothing is written. */
   async preview(input: unknown): Promise<RestorePreview | null> {
-    const { versionId } = VersionInput.parse(input)
+    const { versionId, projectId } = VersionInput.parse(input)
     return this.serial(async () => {
       const folder = await this.deps.folder()
       const target = (await readVersions(folder)).find((v) => v.id === versionId)
-      if (!target) return null
-      const now: VersionRecord = { ...target, id: 'now', parts: await snapshotParts(folder) }
-      const plan = await planRestore(folder, now, target)
       const projects = await this.projects(folder)
-      const affected = projects.filter((p) => [...plan.write, ...plan.remove].some((rel) => touches(p, rel)))
+      if (!target || (projectId && !projects.some((p) => p.id === projectId))) return null
+      const now: VersionRecord = { ...target, id: 'now', parts: await snapshotParts(folder) }
+      const plan = scoped(await planRestore(folder, now, target), projects, projectId)
+      const affected = projects.filter((p) => [...plan.write, ...plan.remove].some((rel) => ownerOf(projects, rel)?.id === p.id))
       return {
         versionId,
+        ...(projectId ? { projectId } : {}),
         changedFiles: plan.write.length,
         newFiles: plan.remove.length,
         sample: [...plan.write, ...plan.remove].slice(0, 20),
@@ -72,14 +89,17 @@ export class VersionService {
     })
   }
 
-  /** Brings back a saved version of the whole folder. */
+  /** Brings back a saved version: of the whole folder, or of one project with `projectId`. */
   async restore(input: unknown): Promise<RestoreResult> {
-    return this.bringBack(VersionInput.parse(input).versionId, RESTORE_TITLE, 'restore')
+    const { versionId, projectId } = VersionInput.parse(input)
+    return this.bringBack(versionId, RESTORE_TITLE, 'restore', projectId)
   }
 
-  /** Undoes a go back: brings back the version saved just before it. */
+  /** Undoes a go back: brings back the version saved just before it, with the same scope. */
   async undo(input: unknown): Promise<RestoreResult> {
-    return this.bringBack(VersionInput.parse(input).versionId, UNDO_TITLE, 'undo')
+    const { versionId } = VersionInput.parse(input)
+    const record = (await readVersions(await this.deps.folder())).find((v) => v.id === versionId)
+    return this.bringBack(versionId, UNDO_TITLE, 'undo', record?.scope)
   }
 
   async trash(): Promise<TrashInfo> {
@@ -107,18 +127,20 @@ export class VersionService {
     this.record(record)
   }
 
-  private bringBack(versionId: string, title: VersionRecord['title'], kind: VersionKind): Promise<RestoreResult> {
+  private bringBack(versionId: string, title: VersionRecord['title'], kind: VersionKind, projectId: string | undefined): Promise<RestoreResult> {
     if (this.deps.scanning()) return Promise.resolve({ ok: false, code: 'busy' })
     return this.serial(async (): Promise<RestoreResult> => {
       const folder = await this.deps.folder()
       const target = (await readVersions(folder)).find((v) => v.id === versionId)
       if (!target) return { ok: false, code: 'not_found' }
       const projects = await this.projects(folder)
+      if (projectId && !projects.some((p) => p.id === projectId)) return { ok: false, code: 'not_found', detail: 'unknown project' }
 
       // 1. Stop what's running in the projects this will change, so no dev server writes mid-restore.
-      //    Compare against a snapshot first, to know which projects those are.
-      const probe = await planRestore(folder, { ...target, id: 'now', parts: await snapshotParts(folder) }, target)
-      const touched = (plan: typeof probe) => projects.filter((p) => [...plan.write, ...plan.remove].some((rel) => touches(p, rel)))
+      //    Compare against a snapshot first, to know which projects those are. A project-scoped
+      //    go back only ever touches (and stops) that project.
+      const probe = scoped(await planRestore(folder, { ...target, id: 'now', parts: await snapshotParts(folder) }, target), projects, projectId)
+      const touched = (plan: typeof probe) => projects.filter((p) => [...plan.write, ...plan.remove].some((rel) => ownerOf(projects, rel)?.id === p.id))
       const stoppedProjects: string[] = []
       for (const p of touched(probe)) {
         if (RUNNING.has(this.deps.runner.get(p.id)?.status ?? '')) {
@@ -130,14 +152,14 @@ export class VersionService {
       // 2. Save the folder as it is now. Going back to this version is the undo.
       let before: VersionRecord
       try {
-        before = await saveVersion(folder, title, kind, { restoredFrom: versionId })
+        before = await saveVersion(folder, title, kind, { restoredFrom: versionId, ...(projectId ? { scope: projectId } : {}) })
       } catch (e) {
         return { ok: false, code: 'failed', detail: String((e as Error).message ?? e) }
       }
       this.record(before)
 
       // 3. Put files back; move files made since into the trash (never delete).
-      const plan = await planRestore(folder, before, target)
+      const plan = scoped(await planRestore(folder, before, target), projects, projectId)
       const movedToTrash = await moveAside(folder, 'trash', plan.remove)
       const { restored } = await restoreFiles(folder, target, plan.write)
 
@@ -152,10 +174,12 @@ export class VersionService {
       if (affected.length) this.deps.bus.emit({ type: 'manifest.changed' })
 
       const changedFiles = restored.length + movedToTrash.length
-      this.deps.bus.emit({ type: 'version.restored', how: kind === 'undo' ? 'undo' : 'restore', versionId, undoVersionId: before.id, changedFiles, stoppedProjects })
+      const scope = projectId ? { projectId } : {}
+      this.deps.bus.emit({ type: 'version.restored', how: kind === 'undo' ? 'undo' : 'restore', versionId, undoVersionId: before.id, ...scope, changedFiles, stoppedProjects })
       return {
         ok: true,
         versionId,
+        ...scope,
         undoVersionId: before.id,
         changedFiles,
         movedToTrash,
