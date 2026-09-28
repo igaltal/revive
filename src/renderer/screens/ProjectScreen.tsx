@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { Project } from '@shared/manifest'
-import type { PreviewDevice } from '@shared/ipc'
+import type { PreviewDevice } from '@shared/contract'
 import { useT } from '@/i18n/useT'
 import { BidiText, LtrBlock } from '@/i18n/bidi'
 import { useProjects } from '@/state/projects'
@@ -55,6 +55,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
   const { t, tx, lang } = useT()
   const { manifest } = useProjects()
   const { runs, shots, start, stop } = useRuntime()
+  const caps = transport.capabilities()
   const [device, setDevice] = useState<PreviewDevice>('desktop')
   const log = useProjectLog(projectId)
   const { versions, lastRestore } = useVersions()
@@ -104,7 +105,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
 
       {lastRestore ? <RestoreDone restore={lastRestore} /> : null}
 
-      {status.kind === 'running' ? (
+      {status.kind === 'running' && caps.nativePreview ? (
         <div className="flex flex-col overflow-hidden rounded-[12px] border border-border bg-card" data-testid="preview">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2">
             <DeviceSwitch value={device} onChange={setDevice} />
@@ -112,9 +113,11 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
               <Button variant="quiet" data-testid="preview-reload" onClick={() => void transport.invoke('preview:reload')}>
                 {tx('preview.reload')}
               </Button>
-              <Button variant="secondary" data-testid="preview-open" onClick={() => void transport.invoke('preview:openInBrowser', { projectId })}>
-                {tx('preview.openInBrowser')}
-              </Button>
+              {caps.openInBrowser ? (
+                <Button variant="secondary" data-testid="preview-open" onClick={() => void transport.invoke('preview:openInBrowser', { projectId })}>
+                  {tx('preview.openInBrowser')}
+                </Button>
+              ) : null}
             </div>
           </div>
           <PreviewFrame projectId={projectId} device={device} />
@@ -122,7 +125,12 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
       ) : (
         <div className="overflow-hidden rounded-[12px] border border-border bg-card">
           <ProjectPicture project={project} src={shots[projectId]} className={cx('h-72', status.kind === 'busy' && 'opacity-60')} />
-          {status.kind === 'busy' ? (
+          {status.kind === 'running' ? (
+            // No live view on this client: the latest picture, and where it runs.
+            <p className="px-5 py-3 text-sm text-muted" data-testid="preview-remote">
+              {tx('preview.remote')}
+            </p>
+          ) : status.kind === 'busy' ? (
             <div className="flex flex-col gap-3 px-5 py-4" data-testid="run-progress">
               <p className="text-[15px] text-ink">{tx(`run.busy.${status.phase}`)}</p>
               <div className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>

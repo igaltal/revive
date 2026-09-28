@@ -1,25 +1,21 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import { join } from 'node:path'
 import type { GuardState } from '@shared/guard'
-import { SettingsStore } from './settings-store'
-import { registerIpc, send } from './ipc/register'
 import { exec } from './exec'
 import { loadShellPath } from './shell-env'
 import { killAllTasks } from './tasks'
-import { ScanController } from './scanner/controller'
 import { createClaudeAdapter } from './scanner/claude-adapter'
 import { fakeAdapter } from './scanner/fake-adapter'
 import { TurnLimitGuard } from './scanner/turn-limit-guard'
-import { RuntimeBus } from './services/runtime-bus'
-import { SessionHub } from './services/sessions/session-hub'
 import { ptyBackend } from './services/sessions/pty-backend'
-import { Runner } from './services/runner/runner'
-import { Workspace } from './services/workspace'
 import { PreviewManager } from './services/preview/preview-manager'
-import { VersionService } from './services/versions/version-service'
 import { capturePage } from './services/preview/capture'
 import { saveShot } from './services/shots/shots'
 import { handleAssetProtocol, registerAssetScheme } from './services/shots/protocol'
+import { createCore, SKIPPED_GUARD } from './app/core'
+import { createHandlers, type Core } from './contract/handlers'
+import { registerIpc } from './contract/ipc'
+import { startDevWsServer } from './contract/ws-server'
 
 const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 let mainWindow: BrowserWindow | null = null
@@ -82,58 +78,69 @@ function lockDownNetwork(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 }
 
-void app.whenReady().then(() => {
-  const settings = new SettingsStore(app.getPath('userData'))
+void app.whenReady().then(async () => {
   lockDownNetwork()
   // Loaded in parallel with the window so startup stays fast.
   const shellReady = loadShellPath(exec)
 
-  const bus = new RuntimeBus()
-  const hub = new SessionHub(ptyBackend, bus)
-  // eslint-disable-next-line prefer-const -- the workspace and runner need each other
-  let runner: Runner
-  const workspace = new Workspace(settings, () => runner.stopAll())
-  runner = new Runner({
-    hub,
-    bus,
-    projects: workspace,
+  // Claude Code must prove it honours the turn limit before it may read a folder.
+  let core: Core | null = null
+  const guard = new TurnLimitGuard(join(app.getPath('userData'), 'claude-guard.json'), exec, (s) => core?.streams.emit('guard:changed', s))
+  core = createCore({
+    userData: app.getPath('userData'),
+    backend: ptyBackend,
     // Plain pages are served by Revive's own tiny server, run by Electron in Node mode.
     staticServer: { file: process.execPath, args: [join(import.meta.dirname, 'static-server.js')], env: { ELECTRON_RUN_AS_NODE: '1' } },
-    capture: async (projectId, url) => {
-      const png = await capturePage(url)
-      return png ? saveShot(await workspace.current(), projectId, png) : null
-    }
+    adapter: testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),
+    guard: testAgent ? SKIPPED_GUARD : { current: (): GuardState => guard.current(), recheck: () => guard.ensure(true) },
+    shellReady,
+    capturePage
   })
-  const preview = new PreviewManager(() => mainWindow, runner, bus, async (projectId, png) => {
-    const path = await saveShot(await workspace.current(), projectId, png)
-    if (path) bus.emit({ type: 'shot.captured', projectId, path })
-  })
-  handleAssetProtocol(() => workspace.projectIds())
-
-  // Claude Code must prove it honours the turn limit before it may read a folder.
-  const guard = new TurnLimitGuard(join(app.getPath('userData'), 'claude-guard.json'), exec, (s) => send(mainWindow, 'guard:changed', s))
-  // eslint-disable-next-line prefer-const -- versions and scans need each other
-  let scans: ScanController
-  const versions = new VersionService({ bus, folder: () => workspace.current(), runner, scanning: () => scans.active() !== null })
-  scans = new ScanController(
-    testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),
-    {
-      progress: (p) => send(mainWindow, 'scan:progress', p),
-      done: (d) => send(mainWindow, 'scan:done', d),
-      versionSaved: (v) => versions.announce(v)
-    },
-    // Nothing running, and no restore half done, while Claude reads the folder.
-    async () => {
-      await runner.stopAll()
-      await versions.whenIdle()
-    }
-  )
-  const guardApi = testAgent
-    ? { current: (): GuardState => ({ state: 'skipped' }), recheck: async (): Promise<GuardState> => ({ state: 'skipped' }) }
-    : { current: () => guard.current(), recheck: () => guard.ensure(true) }
+  const c = core
   if (!testAgent) void shellReady.then(() => guard.ensure())
 
-  registerIpc({ settings, getWindow: () => mainWindow, shellReady, scans, workspace, runner, bus, hub, preview, versions, guard: guardApi })
+  const preview = new PreviewManager(() => mainWindow, c.runner, c.bus, async (projectId, png) => {
+    const path = await saveShot(await c.workspace.current(), projectId, png)
+    if (path) c.bus.emit({ type: 'shot.captured', projectId, path })
+  })
+  handleAssetProtocol(() => c.workspace.projectIds())
+
+  // Every method comes from the contract registry, for IPC and the dev WebSocket alike.
+  const handlers = createHandlers(c, {
+    pickFolder: async (defaultPath) => {
+      const options = { properties: ['openDirectory' as const], defaultPath }
+      const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+    openExternal: (url) => shell.openExternal(url),
+    preview: {
+      show: (projectId, bounds, device) => preview.show(projectId, bounds, device),
+      hide: () => preview.hide(),
+      cover: () => preview.cover(),
+      uncover: () => preview.uncover(),
+      reload: () => preview.reload(),
+      openInBrowser: (projectId) => preview.openInBrowser(projectId)
+    }
+  })
+  // Outputs are checked against the contract too, except in the packaged app.
+  const checkOutputs = !app.isPackaged
+  registerIpc({ ipcMain, handlers, streams: c.streams, hub: c.hub, target: () => mainWindow?.webContents ?? null, checkOutputs })
+
+  // Development only: the same contract over a WebSocket on 127.0.0.1, with a token printed once.
+  // No UI shows it; pairing and device tokens are M7.
+  const devWs =
+    process.env['REVIVE_DEV_WS'] === '1'
+      ? await startDevWsServer({
+          handlers,
+          streams: c.streams,
+          hub: c.hub,
+          assets: () => c.workspace.projectIds(),
+          port: Number(process.env['REVIVE_DEV_WS_PORT'] ?? 0) || undefined,
+          checkOutputs
+        })
+      : null
+  if (devWs) process.stderr.write(`[revive] dev WebSocket: ${devWs.url} token=${devWs.token}\n`)
+
   createWindow(preview)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(preview)
@@ -145,9 +152,9 @@ void app.whenReady().then(() => {
     if (quitting) return
     quitting = true
     event.preventDefault()
-    scans.abortAll()
+    c.scans.abortAll()
     killAllTasks()
-    void Promise.race([runner.stopAll(), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
+    void Promise.race([Promise.all([c.runner.stopAll(), devWs?.close()]), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
   })
 })
 

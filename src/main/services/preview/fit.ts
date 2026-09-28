@@ -1,4 +1,4 @@
-import type { Bounds, PreviewDevice } from '@shared/ipc'
+import type { Bounds, PreviewDevice } from '@shared/contract'
 
 export const PHONE_WIDTH = 390
 

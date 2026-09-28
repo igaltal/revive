@@ -243,3 +243,37 @@ test('go back to a saved version and undo it: preview hidden under dialogs, proj
   expect(pageErrors).toEqual([])
   await app.close()
 })
+
+test('dev WebSocket: off by default; with REVIVE_DEV_WS=1 it prints a token once and serves the same contract', async () => {
+  const { WsTransport } = await import('../src/shared/ws-transport')
+  const stderrOf = (a: Awaited<ReturnType<typeof launch>>) => {
+    let text = ''
+    a.process().stderr?.on('data', (d: Buffer) => (text += d.toString()))
+    return () => text
+  }
+
+  // Off by default: nothing printed, nothing listening.
+  const plain = await launch(freshUserData())
+  const plainErr = stderrOf(plain)
+  await (await plain.firstWindow()).getByTestId('welcome-en').waitFor()
+  await plain.close()
+  expect(plainErr()).not.toContain('dev WebSocket')
+
+  const app = await launch(freshUserData(), { REVIVE_DEV_WS: '1' })
+  const err = stderrOf(app)
+  const win = await app.firstWindow()
+  await win.getByTestId('welcome-en').click()
+  await expect.poll(() => /dev WebSocket: (ws:\/\/127\.0\.0\.1:\d+\/ws) token=(\S+)/.exec(err()) !== null, { timeout: 10_000 }).toBe(true)
+  const [, url, token] = /dev WebSocket: (ws:\/\/127\.0\.0\.1:\d+\/ws) token=(\S+)/.exec(err())!
+  expect(err().match(/dev WebSocket/g)).toHaveLength(1)
+
+  const client = new WsTransport({ url: url!, httpUrl: url!.replace('ws://', 'http://').replace(/\/ws$/, ''), token: token! })
+  await client.connect()
+  // The language chosen in the window is what the remote client reads: one core, two transports.
+  await expect.poll(async () => (await client.invoke('settings:get')).uiLanguage).toBe('en')
+  await expect(client.invoke('folder:pick')).rejects.toMatchObject({ code: 'not_available' })
+  const wrong = new WsTransport({ url: url!, httpUrl: '', token: 'nope' })
+  await expect(wrong.connect()).rejects.toMatchObject({ code: 'unreachable' })
+  client.close()
+  await app.close()
+})

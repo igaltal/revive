@@ -3,9 +3,12 @@
  * src/renderer/transport/. That is what lets a remote client replace the
  * transport without touching a screen. This rule fails when:
  * - any renderer file imports or requires Electron;
- * - any renderer file outside the transport uses ipcRenderer or window.revive.
+ * - any renderer file outside the transport uses ipcRenderer or window.revive,
+ *   or imports a transport implementation (screens see only the Transport interface).
  */
 export const TRANSPORT_DIR = /[\\/]src[\\/]renderer[\\/]transport[\\/]/
+
+const IMPLEMENTATION = /(?:^|\/)(?:ipc-transport|ws-transport)(?:\.ts)?$/
 
 const isElectron = (source) => source === 'electron' || (typeof source === 'string' && source.startsWith('electron/'))
 
@@ -22,6 +25,7 @@ export default {
         return {
           ImportDeclaration(node) {
             if (isElectron(node.source.value)) electron(node)
+            if (typeof node.source.value === 'string' && IMPLEMENTATION.test(node.source.value)) outside(node, 'A transport implementation')
           },
           ImportExpression(node) {
             if (node.source.type === 'Literal' && isElectron(node.source.value)) electron(node)

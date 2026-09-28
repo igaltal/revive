@@ -22,7 +22,9 @@ export function GuardBlocked({ guard, onRecheck }: { guard: Extract<GuardState, 
           tone="broken"
           actions={
             <>
-              <Button onClick={() => void transport.invoke('shell:openHelp', { topic: 'claude-install' })}>{tx('guard.update')}</Button>
+              {transport.capabilities().openHelp ? (
+                <Button onClick={() => void transport.invoke('shell:openHelp', { topic: 'claude-install' })}>{tx('guard.update')}</Button>
+              ) : null}
               <Button variant="secondary" onClick={onRecheck}>
                 {tx('common.checkAgain')}
               </Button>

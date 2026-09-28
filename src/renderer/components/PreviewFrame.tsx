@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import type { PreviewDevice } from '@shared/ipc'
+import type { PreviewDevice } from '@shared/contract'
 import { transport } from '@/transport'
 import { usePreviewCovered } from '@/state/overlay'
 import { useRuntime } from '@/state/runtime'

@@ -1,5 +1,5 @@
 import { shell, WebContentsView, type BrowserWindow } from 'electron'
-import type { Bounds, PreviewDevice } from '@shared/ipc'
+import type { Bounds, PreviewDevice } from '@shared/contract'
 import type { RuntimeBus } from '../runtime-bus'
 import type { Runner } from '../runner/runner'
 import { guardPreviewContents, isLocalUrl, previewSession } from './preview-session'

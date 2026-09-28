@@ -80,3 +80,6 @@ export const LOCKABLE_FIELDS = [
   'keys',
   'notes'
 ] as const
+
+/** The stored manifest of the current folder, as a client sees it. */
+export type ManifestState = { state: 'none' } | { state: 'ok'; manifest: Manifest } | { state: 'invalid'; issues: string[] }

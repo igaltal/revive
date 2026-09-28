@@ -57,7 +57,7 @@ Revive/
       └─ screens/     # Onboarding, Scan, Projects, ProjectPage, History, Settings
 ```
 
-## 2. IPC contracts (`src/shared/ipc.ts`)
+## 2. IPC contracts (superseded in M6 by `src/shared/contract.ts`; the table below is the original plan)
 
 The renderer only ever calls `window.revive.invoke(channel, args)` and `window.revive.on(event, cb)`. Both are typed from one map. Main validates every payload with zod, and all paths are resolved and checked against the active folder.
 
@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -384,3 +384,104 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 - `npm run test:live` wasn't rerun: nothing in the scan or turn-limit path changed in M5.
 
 *Try it:* `REVIVE_TEST_AGENT=$PWD/fixtures/sample-folder.manifest.json REVIVE_USER_DATA=$(mktemp -d) npm run dev` with a copy of `fixtures/sample-folder`. Read the folder, start Sunrise Bakery, edit `bakery-site/index.html` in an editor, then "Go back to an earlier version" on its page; try Undo and the trash in History. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M6: done (2026-09-28), the transport seam
+
+No visible change to the desktop app: the same screens and flows, and all e2e tests pass unchanged. Built to `docs/HOST_PRD.md`, "Technical architecture" and "Building on the existing Revive codebase": one Transport contract with an IPC and a WebSocket implementation, the same contract tests against both, localhost only.
+
+**First, the fix from the M5 report: going back from a project page is for that project only** (commit `99ab96a`).
+- `versions:preview` and `versions:restore` take an optional `projectId`. A file belongs to the deepest project whose folder holds it, so a nested project keeps its own files.
+- Only that project is stopped if it's running; other running projects are left alone.
+- The undo point records the scope (`scope` on the version), so Undo keeps it, including from History.
+- The dialog says which scope applies: "Only Sunrise Bakery goes back. The other projects in the folder stay exactly as they are." or "The whole folder goes back, with every project in it." History still restores the whole folder.
+- Tests:
+  - Two projects change; a project-scoped go back reverts one and leaves the other **byte for byte identical**, and it isn't stopped.
+  - Undo keeps the scope.
+  - A nested project's files stay out of its parent's go back.
+  - An unknown project is refused.
+
+**1. One contract registry: `src/shared/contract.ts`**
+- **Methods:** every method (37) with a **zod input and output schema** and `remote: true/false`.
+- **Server streams:** `settings:changed`, `prereq:task`, `scan:progress`, `scan:done`, `guard:changed`, `runtime:event` (state events, numbered) and `session:output` (`{sessionId, offset, data, truncated?}`).
+- **Client streams:** `session:input` and `session:resize`.
+- **Type safety:** each schema is checked at compile time against the TypeScript type it describes (a drifting field fails the typecheck; I tried it). `contract-names.ts` holds the same names without zod for the sandboxed preload, and a compile-time check keeps the two lists identical.
+- **Generated IPC:** `main/contract/ipc.ts` registers one `ipcMain.handle` per registry method and one `ipcMain.on` per client stream, and forwards every server stream to the window.
+  - Every call goes through `dispatch()`: the method must be in the registry and allowed on this transport, and the input must match its schema. Outside packaged builds, outputs are checked too.
+  - `main/contract/handlers.ts` is a mapped type over the registry, so a missing or extra handler is a compile error; each handler is one service call. `main/app/core.ts` builds the core without Electron, and native-only pieces sit behind a `Platform` interface.
+- **`tests/contract-registry.test.ts`:**
+  - IPC registers exactly the registry (no more, no fewer).
+  - A source scan **fails if any `ipcMain.handle/on/once` or `webContents.send` exists outside `contract/ipc.ts`**.
+  - Unknown methods, bad input, local-only methods over the network, and outputs outside the contract are all refused.
+- **Same error codes on both transports.** Over IPC, Electron keeps only an error's message, so results travel in an `{ok, v | e:{code, message}}` envelope, and both transports throw the same `RemoteError` with the same codes (`bad_input`, `not_available`, `unknown_method`, `failed`).
+
+**2. `Transport` interface (`src/shared/transport.ts`)**
+- The API: `invoke(method, input)`, `subscribe(stream, handler)`, `subscribe('session:output', handler, {sessionId, fromOffset})`, `writeSession`, `resizeSession`, `assetUrl(path)`, `capabilities()`, `onConnection()`, plus `pathForFile` (desktop only).
+- **`BaseTransport` holds the resume logic once, for both transports:**
+  - State events are applied once and in order, by sequence number.
+  - Live events that arrive while catching up are held, so none is lost or reordered.
+  - Session output is applied once, with no gaps, by byte offset. Any gap is marked `truncated`.
+- **`capabilities()`** comes from the registry: a capability is on only if its transport may call all the methods it needs. `nativePreview`, `folderPicker`, `dropFolder`, `openInBrowser`, `installTools`, `openHelp`.
+- **The renderer hides what a client can't do** instead of checking for Electron:
+  - the live preview (shows the latest picture and "It's running on the computer that runs Revive"), Reload and Open in browser;
+  - the folder dialog and drop zone (recent folders stay);
+  - install, sign in and help buttons ("Do this on the computer that runs Revive.");
+  - the overlay hook doesn't call `preview:cover` at all.
+  - Tested by rendering the whole app with a remote client's capabilities (`remote-ui.test.tsx`).
+
+**3. `IpcTransport`**
+- The preload is now a generic bridge that accepts only registry names. `IpcTransport` (`renderer/transport/ipc-transport.ts`) extends `BaseTransport`.
+- Screens import only `transport` (typed as `Transport`) from `@/transport`. The boundary lint rule now also fails if a screen imports a transport implementation. The old `shared/ipc.ts` and `main/ipc/register.ts` are gone.
+- `installTransport()` lets a non-desktop client plug in another implementation later (M9).
+
+**4. `WsTransport` and the dev WebSocket server (`REVIVE_DEV_WS=1`, off by default, no UI)**
+- **Access:**
+  - Binds **127.0.0.1** only (tested: not reachable on the LAN address). Port random, or `REVIVE_DEV_WS_PORT`.
+  - **A random token per start** (32 bytes, base64url), printed **once** to stderr: `[revive] dev WebSocket: ws://127.0.0.1:<port>/ws token=…`. It travels as a second WebSocket subprotocol, since browsers can't set headers; timing-safe compare.
+  - **Origin:** requests without an Origin header (programs that aren't browsers) are allowed, and still need the token. Otherwise only the server's own origin (`http://127.0.0.1:<port>` / `http://localhost:<port>`, where a future web client will be served) is allowed. `https://evil.example`, `null` (file pages) and even `http://localhost:5173` are refused with 403.
+  - **The Host header** must be 127.0.0.1 or localhost at the right port, which blocks DNS rebinding.
+- **Session output as binary frames with backpressure:**
+  - A frame is `[u32 header length][header {session, offset, truncated?}][UTF-8]`. Each client asks per session with its offset (`watch`); the server sends what's buffered first, then live.
+  - When a client's unsent data passes 512 KB, the server simply stops sending it output; it never waits. The pty and other clients carry on. Every 50 ms the server checks, and once there's room it catches the client up from the session buffer, marking a gap if the buffer no longer had it.
+  - A client more than 16 MB behind on state events is disconnected and resumes on its own.
+- **Pictures over HTTP** on the same server: `/shots/<id>.png`, with the token as a query parameter (for `<img>`) or a Bearer header, the same Host and Origin checks, and only from `.revive/shots`. `WsTransport.assetUrl()` builds that URL.
+- **`WsTransport`** (Node 22+ or a browser):
+  - Reconnects with backoff (250 ms to 5 s).
+  - Resumes with `runtime:since` from its last sequence number, and re-watches each session from its byte offset.
+  - Calls that were sent before a drop fail with `disconnected` (they may or may not have run); calls still waiting to be sent go out after reconnecting instead of failing.
+
+**5. Parity tests (`main/contract/parity.test.ts`):** the same suite on both transports, against the real core (real runner and sessions, versions, and the scan pipeline with the offline agent). IPC runs through the generated registration with Electron's `ipcMain` stood in and `structuredClone` on every message; WebSocket runs against a real server in process. 7 tests × 2 transports:
+- choose a folder and read it (progress, the saved version on the stream, the manifest);
+- start and stop a run session (every status, `process.exited`, output on the session stream, the log);
+- keystrokes into a session (`writeSession`, `resizeSession`);
+- a project-scoped version restore (file back, `version.restored` with `projectId`, the scoped undo point);
+- input checks with the same error codes;
+- a service error (unknown project) comes back as `failed` on both;
+- **reconnect in the middle of a noisy dev server** (20,000 lines, about 1.2 MB): the connection drops repeatedly (WS) or events are lost (IPC) while the server keeps printing and reaches "running". The client still ends with **every status change, in order, exactly as the server made them**. Its output has no repeats and marks any gap, ends at exactly the server's buffer end, and contains the real tail.
+- Plus `ws-server.test.ts`:
+  - localhost only; token required; wrong origin and rebinding refused; pictures only with the token;
+  - local-only methods refused;
+  - **backpressure:** a client that stops reading its socket while a dev server prints about 4 MB doesn't slow the dev server or the other client (which gets every status and the full tail). When it reads again it catches up, with the dropped part marked.
+- Plus e2e on the built app: without the flag nothing is printed; with it the token is printed exactly once, a WebSocket client in the test reads the same settings the window changed, `folder:pick` is refused remotely, and a wrong token can't connect.
+
+**Unsupported for a WebSocket client, and why**
+| Feature | Methods | Why |
+|---|---|---|
+| Live preview (and Reload) | `preview:show/hide/cover/uncover/reload` | It's a native view inside the desktop window. A remote client can't see it, and the dev server listens on the host's localhost. Remote preview needs the URL exposed with `tailscale serve` (M7+). Remote clients see the latest picture instead. |
+| Open in browser | `preview:openInBrowser` | It would open a browser on the host computer, not on the client. |
+| Folder dialog | `folder:pick` | It's the host's native dialog. Remote clients can pick from recent folders; `folder:choose` with a path works but has no UI. |
+| Drop a folder | (bridge only) | Needs a real file path from the desktop drag and drop. |
+| Install Claude Code, sign in | `prereq:installClaude`, `prereq:signIn` | They run the installer and open the sign-in page on the host; the user has to confirm and act there. The check itself (`prereq:check`) works remotely. |
+| Help pages | `shell:openHelp` | Opens a browser on the host. |
+
+Everything else is available remotely, including reading the folder, start/stop, logs, session input, versions and the trash (still behind `{confirm: true}`).
+
+**Notes for you**
+- **Only the runtime stream and session output resume after a reconnect.** `scan:progress/done`, `settings:changed`, `guard:changed` and `prereq:task` are live only. A client should refresh on `onConnection('open')`; the desktop renderer never disconnects, so nothing changes today. M9's web client will need it.
+- **Pictures over the dev server use a token in the URL** (needed for `<img>`). That's fine for localhost development; M7's per-device tokens should use a cookie or short-lived signed URLs instead.
+- **The app's own renderer can't use the dev WebSocket:** its origin (`file://`, or the Vite dev server) is refused, as asked ("not the app's own" means the server's own origin). The desktop renderer uses IPC, so that's by design.
+- **Output checking** runs in tests and unpackaged builds only. In the packaged app, inputs are still validated.
+- **New dependency:** `ws` 8.22 (the server; Node's built-in WebSocket is the client).
+
+*Try it:* `REVIVE_DEV_WS=1 npm run dev`, then copy the URL and token it prints and, from another terminal (Node's built-in WebSocket, raw wire format):
+`node -e "const [u,t]=process.argv.slice(1); const ws=new WebSocket(u,['revive.v1','revive.token.'+t]); ws.onopen=()=>ws.send(JSON.stringify({t:'call',id:1,m:'runner:list'})); ws.onmessage=(e)=>{console.log(e.data); ws.close()}" <url> <token>`
+(checked against the built app). Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.

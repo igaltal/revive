@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
-import type { EventChannel, IpcEvents, RequestChannel, ReviveApi } from '@shared/ipc'
+import type { MethodName, ServerStreamName, ServerStreamPayload } from '@shared/contract'
+import type { DesktopBridge } from '@shared/transport'
 import type { PrereqReport } from '@shared/prereq'
 
 export const READY_REPORT: PrereqReport = {
@@ -10,7 +11,7 @@ export const READY_REPORT: PrereqReport = {
   checkedAt: '2026-09-25T00:00:00.000Z'
 }
 
-type Handlers = Partial<Record<RequestChannel, (args: unknown) => unknown>>
+type Handlers = Partial<Record<MethodName, (args: unknown) => unknown>>
 
 /** In-memory stand-in for the preload bridge. */
 export function installMockRevive(initial: Partial<Settings> = {}, handlers: Handlers = {}) {
@@ -18,7 +19,7 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
   const listeners = new Map<string, Set<(p: unknown) => void>>()
   const calls: Array<{ channel: string; args: unknown }> = []
 
-  const emit = <E extends EventChannel>(event: E, payload: IpcEvents[E]) => {
+  const emit = <E extends ServerStreamName>(event: E, payload: ServerStreamPayload<E>) => {
     for (const l of listeners.get(event) ?? []) l(payload)
   }
 
@@ -33,6 +34,8 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     'manifest:get': () => ({ state: 'none' }),
     'scan:active': () => null,
     'scan:start': () => ({ scanId: 'scan-1' }),
+    'runtime:head': () => ({ seq: 0 }),
+    'sessions:output': (a) => ({ sessionId: (a as { sessionId: string }).sessionId, data: '', fromOffset: 0, nextOffset: 0, truncated: false }),
     'guard:status': () => ({ state: 'ok', version: '2.1.283', checkedAt: '2026-09-27T00:00:00.000Z' }),
     'runner:list': () => [],
     'runner:logs': () => [],
@@ -51,18 +54,22 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     }
   }
 
-  const api: ReviveApi = {
-    invoke: (async (channel: RequestChannel, args?: unknown) => {
+  const api: DesktopBridge = {
+    invoke: async (channel: string, args?: unknown) => {
       calls.push({ channel, args })
-      const h = handlers[channel] ?? defaults[channel]
-      if (!h) return undefined
-      return h(args)
-    }) as ReviveApi['invoke'],
-    on: ((event: string, listener: (p: unknown) => void) => {
+      const h = handlers[channel as MethodName] ?? defaults[channel as MethodName]
+      try {
+        return { ok: true, v: h ? await h(args) : undefined }
+      } catch (e) {
+        return { ok: false, e: { code: 'failed', message: String((e as Error).message) } }
+      }
+    },
+    on: (event: string, listener: (p: unknown) => void) => {
       if (!listeners.has(event)) listeners.set(event, new Set())
       listeners.get(event)!.add(listener)
       return () => listeners.get(event)!.delete(listener)
-    }) as ReviveApi['on'],
+    },
+    send: (channel: string, args: unknown) => void calls.push({ channel, args }),
     pathForFile: (file) => `/dropped/${file.name}`
   }
   Object.defineProperty(window, 'revive', { value: api, configurable: true })

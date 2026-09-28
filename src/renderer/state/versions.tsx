@@ -43,7 +43,7 @@ export function VersionsProvider({ children }: { children: ReactNode }) {
 
   useEffect(
     () =>
-      transport.on('runtime:event', (e) => {
+      transport.subscribe('runtime:event', (e) => {
         if (e.type === 'version.saved' || e.type === 'trash.emptied') refresh()
         if (e.type === 'version.restored') {
           setLastRestore(e)

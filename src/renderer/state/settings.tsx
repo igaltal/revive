@@ -22,7 +22,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setSettings(s)
       setLoaded(true)
     })
-    const off = transport.on('settings:changed', setSettings)
+    const off = transport.subscribe('settings:changed', setSettings)
     return () => {
       alive = false
       off()

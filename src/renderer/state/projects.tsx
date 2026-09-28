@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { ManifestState } from '@shared/ipc'
+import type { ManifestState } from '@shared/manifest'
 import type { ScanDone, ScanProgress } from '@shared/scan'
 import { useSettings } from './settings'
 import { transport } from '@/transport'
@@ -42,8 +42,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     void transport.invoke('scan:active').then((a) => {
       if (alive && a) setScan((s) => s ?? { scanId: a.scanId, progress: null })
     })
-    const offProgress = transport.on('scan:progress', (p) => setScan({ scanId: p.scanId, progress: p }))
-    const offDone = transport.on('scan:done', (d) => {
+    const offProgress = transport.subscribe('scan:progress', (p) => setScan({ scanId: p.scanId, progress: p }))
+    const offDone = transport.subscribe('scan:done', (d) => {
       setScan(null)
       setLastResult(d)
       setReloadTick((n) => n + 1)

@@ -8,7 +8,7 @@ export function useGuard(): { guard: GuardState | null; recheck: () => void } {
   useEffect(() => {
     let alive = true
     void transport.invoke('guard:status').then((g) => alive && setGuard(g))
-    const off = transport.on('guard:changed', setGuard)
+    const off = transport.subscribe('guard:changed', setGuard)
     return () => {
       alive = false
       off()

@@ -34,6 +34,10 @@ describe('renderer boundary: one transport module, no Electron', () => {
     expect(lint(`window.revive.invoke('settings:get')`, screen)).toHaveLength(1)
     expect(lint(`window['revive'].on('x', () => {})`, screen)).toHaveLength(1)
     expect(lint(`import { transport } from '@/transport'; transport.invoke('settings:get')`, screen)).toEqual([])
+    // Screens see the Transport interface only, never an implementation.
+    expect(lint(`import { IpcTransport } from '@/transport/ipc-transport'`, screen)).toHaveLength(1)
+    expect(lint(`import { WsTransport } from '@shared/ws-transport'`, screen)).toHaveLength(1)
+    expect(lint(`import type { Transport } from '@shared/transport'`, screen)).toEqual([])
   })
 
   it('allows the bridge only inside src/renderer/transport/, and Electron nowhere', () => {

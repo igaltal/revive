@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Project } from '@shared/manifest'
-import { BUSY_STATUSES, type RunState, type RunStatus, type RuntimeEvent } from '@shared/runtime'
+import { BUSY_STATUSES, sessionId, type RunState, type RunStatus } from '@shared/runtime'
 import { transport } from '@/transport'
 import { useProjects } from './projects'
 
@@ -35,7 +35,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
 
   useEffect(
     () =>
-      transport.on('runtime:event', (e: RuntimeEvent) => {
+      transport.subscribe('runtime:event', (e) => {
         if (e.type === 'status.changed') setRuns((r) => ({ ...r, [e.state.projectId]: e.state }))
         else if (e.type === 'shot.captured') setShots((s) => ({ ...s, [e.projectId]: transport.assetUrl(e.path) }))
         else if (e.type === 'manifest.changed') reload()
@@ -72,7 +72,7 @@ export function displayStatus(project: Project, run: RunState | undefined): Disp
   return { kind: project.status === 'running' ? 'unknown' : project.status }
 }
 
-/** The project's recent output (masked by main), refreshed as the stream says it changed. */
+/** The project's recent output (masked by main), refreshed whenever its run session prints. */
 export function useProjectLog(projectId: string): string[] {
   const [lines, setLines] = useState<string[]>([])
   useEffect(() => {
@@ -83,14 +83,19 @@ export function useProjectLog(projectId: string): string[] {
       void transport.invoke('runner:logs', { projectId }).then((l) => alive && setLines(l))
     }
     refresh()
-    const off = transport.on('runtime:event', (e) => {
-      const id = 'session' in e ? e.session.projectId : null
-      if (id === projectId && !timer) timer = setTimeout(refresh, 250)
+    const later = () => {
+      if (!timer) timer = setTimeout(refresh, 250)
+    }
+    const offOutput = transport.subscribe('session:output', later, { sessionId: sessionId({ projectId, kind: 'run' }), fromOffset: 0 })
+    // A new start clears the log even before anything is printed.
+    const offState = transport.subscribe('runtime:event', (e) => {
+      if (e.type === 'process.started' && e.session.projectId === projectId) later()
     })
     return () => {
       alive = false
       if (timer) clearTimeout(timer)
-      off()
+      offOutput()
+      offState()
     }
   }, [projectId])
   return lines

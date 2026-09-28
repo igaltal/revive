@@ -1,7 +1,7 @@
-import type { ReviveApi } from '../shared/ipc'
+import type { DesktopBridge } from '../shared/transport'
 
 declare global {
   interface Window {
-    revive: ReviveApi
+    revive: DesktopBridge
   }
 }

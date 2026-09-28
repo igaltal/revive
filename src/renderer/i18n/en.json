@@ -208,7 +208,8 @@
       "note": "Without Node.js, Revive can read your projects but can't start most of them. You can install it later."
     },
     "output": "What the installer is doing",
-    "versions": "Versions found"
+    "versions": "Versions found",
+    "remoteNote": "Do this on the computer that runs Revive."
   },
   "folder": {
     "title": "Which folder holds your projects?",
@@ -231,7 +232,8 @@
       "noServers": "Revive has no servers. Claude reads your code through your own Claude account."
     },
     "change": "Choose another folder",
-    "current": "Current folder"
+    "current": "Current folder",
+    "remoteNote": "Folders are chosen on the computer that runs Revive. Recent ones are below."
   },
   "scan": {
     "title": "Reading your folder",
@@ -326,7 +328,8 @@
     "desktop": "Computer",
     "phone": "Phone",
     "reload": "Reload",
-    "openInBrowser": "Open in browser"
+    "openInBrowser": "Open in browser",
+    "remote": "It's running on the computer that runs Revive. This is its latest picture."
   },
   "trash": {
     "title": "Revive's trash",

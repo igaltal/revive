@@ -50,6 +50,7 @@ function Row({ id, state }: { id: string; state: RowState | 'checking' }): React
 
 export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNode {
   const { t, tx } = useT()
+  const caps = transport.capabilities()
   const [report, setReport] = useState<PrereqReport | null>(null)
   const [checking, setChecking] = useState(true)
   const [confirmInstall, setConfirmInstall] = useState(false)
@@ -79,7 +80,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
 
   useEffect(
     () =>
-      transport.on('prereq:task', (u) => {
+      transport.subscribe('prereq:task', (u) => {
         const set = u.task === 'install-claude' ? setInstall : setSignIn
         set((prev) => ({ phase: u.phase, lines: u.line ? [...prev.lines, u.line].slice(-400) : prev.lines }))
         // Re-check automatically once an install or sign-in ends.
@@ -149,16 +150,21 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
           title={tx('prereq.install.title')}
           actions={
             <>
-              <Button data-testid="install-start" onClick={() => setConfirmInstall(true)}>
-                {tx(install.phase === 'failed' ? 'common.tryAgain' : 'prereq.install.button')}
-              </Button>
-              <Button variant="secondary" onClick={() => help('claude-install')}>
-                {tx('common.openOfficialPage')}
-              </Button>
+              {caps.installTools ? (
+                <Button data-testid="install-start" onClick={() => setConfirmInstall(true)}>
+                  {tx(install.phase === 'failed' ? 'common.tryAgain' : 'prereq.install.button')}
+                </Button>
+              ) : null}
+              {caps.openHelp ? (
+                <Button variant="secondary" onClick={() => help('claude-install')}>
+                  {tx('common.openOfficialPage')}
+                </Button>
+              ) : null}
             </>
           }
         >
           <p>{tx(install.phase === 'failed' ? 'prereq.install.failed' : 'prereq.install.body')}</p>
+          {!caps.installTools ? <p className="text-muted">{tx('prereq.remoteNote')}</p> : null}
           <TechnicalDetails>
             <LtrBlock label={t('technical.command')}>{CLAUDE_INSTALL_COMMAND}</LtrBlock>
             {install.lines.length > 0 ? <LogBlock label={t('prereq.output')} lines={install.lines} /> : null}
@@ -176,9 +182,11 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
         actions={
           signIn.phase === 'running' ? null : (
             <>
-              <Button data-testid="sign-in-start" onClick={startSignIn}>
-                {tx(failed ? 'common.tryAgain' : 'prereq.signIn.button')}
-              </Button>
+              {caps.installTools ? (
+                <Button data-testid="sign-in-start" onClick={startSignIn}>
+                  {tx(failed ? 'common.tryAgain' : 'prereq.signIn.button')}
+                </Button>
+              ) : null}
               <Button variant="secondary" onClick={() => void check()}>
                 {tx('common.checkAgain')}
               </Button>
@@ -187,6 +195,7 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
         }
       >
         <p>{tx(signIn.phase === 'running' ? 'prereq.signIn.waiting' : failed ? 'prereq.signIn.failed' : 'prereq.signIn.body')}</p>
+        {!caps.installTools ? <p className="text-muted">{tx('prereq.remoteNote')}</p> : null}
         {failed ? <LtrBlock>claude</LtrBlock> : null}
         <TechnicalDetails>
           <LtrBlock label={t('technical.command')}>{CLAUDE_SIGN_IN_COMMAND}</LtrBlock>
@@ -203,9 +212,11 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
         actions={
           <>
             <Button onClick={() => void check()}>{tx('common.checkAgain')}</Button>
-            <Button variant="secondary" onClick={() => help('git')}>
-              {tx('common.openOfficialPage')}
-            </Button>
+            {caps.openHelp ? (
+              <Button variant="secondary" onClick={() => help('git')}>
+                {tx('common.openOfficialPage')}
+              </Button>
+            ) : null}
           </>
         }
       >
@@ -236,9 +247,11 @@ export function PrereqStep({ onContinue }: { onContinue: () => void }): ReactNod
           testId="panel-node"
           tone="attention"
           actions={
-            <Button variant="secondary" onClick={() => help('node')}>
-              {tx('common.openOfficialPage')}
-            </Button>
+            caps.openHelp ? (
+              <Button variant="secondary" onClick={() => help('node')}>
+                {tx('common.openOfficialPage')}
+              </Button>
+            ) : undefined
           }
         >
           <p>{tx('prereq.node.note')}</p>

@@ -17,6 +17,7 @@ function FolderIcon() {
 
 export function FolderStep({ onChosen, header }: { onChosen: (path: string) => void; header?: ReactNode }): ReactNode {
   const { t, tx } = useT()
+  const caps = transport.capabilities()
   const [recent, setRecent] = useState<RecentFolder[]>([])
   const [problem, setProblem] = useState<FolderProblem | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -47,7 +48,7 @@ export function FolderStep({ onChosen, header }: { onChosen: (path: string) => v
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
-    void choose(transport.pathForFile(file))
+    if (transport.pathForFile) void choose(transport.pathForFile(file))
   }
 
   return (
@@ -59,28 +60,41 @@ export function FolderStep({ onChosen, header }: { onChosen: (path: string) => v
         </div>
       )}
 
-      <div
-        data-testid="folder-drop"
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        className={cx(
-          'flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-8 py-12 text-center transition-colors',
-          dragging ? 'border-ink bg-card' : 'border-border bg-card/60'
-        )}
-      >
-        <span className="text-muted">
-          <FolderIcon />
-        </span>
-        <p className="font-display text-xl text-ink">{tx('folder.drop')}</p>
-        <span className="text-sm text-muted">{tx('folder.or')}</span>
-        <Button data-testid="folder-pick" onClick={() => void pick()}>
-          {tx('folder.choose')}
-        </Button>
-      </div>
+      {caps.dropFolder || caps.folderPicker ? (
+        <div
+          data-testid="folder-drop"
+          onDragOver={
+            caps.dropFolder
+              ? (e) => {
+                  e.preventDefault()
+                  setDragging(true)
+                }
+              : undefined
+          }
+          onDragLeave={caps.dropFolder ? () => setDragging(false) : undefined}
+          onDrop={caps.dropFolder ? onDrop : undefined}
+          className={cx(
+            'flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-8 py-12 text-center transition-colors',
+            dragging ? 'border-ink bg-card' : 'border-border bg-card/60'
+          )}
+        >
+          <span className="text-muted">
+            <FolderIcon />
+          </span>
+          {caps.dropFolder ? <p className="font-display text-xl text-ink">{tx('folder.drop')}</p> : null}
+          {caps.dropFolder && caps.folderPicker ? <span className="text-sm text-muted">{tx('folder.or')}</span> : null}
+          {caps.folderPicker ? (
+            <Button data-testid="folder-pick" onClick={() => void pick()}>
+              {tx('folder.choose')}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        // This client can't reach the other computer's dialogs or files: recent folders only.
+        <Notice testId="folder-remote">
+          <p>{tx('folder.remoteNote')}</p>
+        </Notice>
+      )}
 
       {problem ? (
         <Notice testId="folder-problem" tone="broken">

@@ -28,7 +28,8 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
   const acquire = useCallback(() => {
     open.current += 1
     setCount(open.current)
-    if (open.current === 1) {
+    // Only a client with the native preview has anything to hide.
+    if (open.current === 1 && transport.capabilities().nativePreview) {
       hidden.current = Promise.race([
         transport.invoke('preview:cover').catch(() => {}),
         new Promise<void>((r) => setTimeout(r, MAX_WAIT_MS))
@@ -42,7 +43,7 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
         released = true
         open.current -= 1
         setCount(open.current)
-        if (open.current === 0) void transport.invoke('preview:uncover')
+        if (open.current === 0 && transport.capabilities().nativePreview) void transport.invoke('preview:uncover')
       }
     }
   }, [])
