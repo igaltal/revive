@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<title>Revive Host, מסך הבית</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Hebrew',system-ui,sans-serif;background:#0b1120}
+a{color:#9cc7ff;text-decoration:none}a:hover{color:#c7deff}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+input::placeholder{color:#5b6475}
+</style>
+</helmet>
+<div dir="rtl" style="width: 1440px; height: 1024px; position: relative; overflow: hidden; color: #f2f5fa; font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif; background: #0b1120">
+
+  <svg width="1440" height="1024" viewBox="0 0 1440 1024" preserveAspectRatio="xMidYMid slice" style="position: absolute; top: 0; left: 0">
+    <defs>
+      <linearGradient id="dsky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style="stop-color: {{s.sky0}}"></stop>
+        <stop offset="0.3" style="stop-color: {{s.sky1}}"></stop>
+        <stop offset="0.47" style="stop-color: {{s.sky2}}"></stop>
+        <stop offset="0.58" style="stop-color: {{s.sky3}}"></stop>
+      </linearGradient>
+      <radialGradient id="dglow" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" style="stop-color: {{s.glow}}; stop-opacity: {{s.glowOp}}"></stop>
+        <stop offset="1" style="stop-color: {{s.glow}}; stop-opacity: 0"></stop>
+      </radialGradient>
+      <linearGradient id="dlake" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style="stop-color: {{s.lakeTop}}"></stop>
+        <stop offset="0.3" style="stop-color: {{s.lakeMid}}"></stop>
+        <stop offset="1" style="stop-color: {{s.lakeDeep}}"></stop>
+      </linearGradient>
+      <linearGradient id="dfade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style="stop-color: #060a14; stop-opacity: 0"></stop>
+        <stop offset="1" style="stop-color: #060a14; stop-opacity: 0.72"></stop>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="1440" height="620" fill="url(#dsky)"></rect>
+    <path d="{{s.stars}}" style="fill: #ffffff; opacity: 0.75"></path>
+    <circle cx="1110" cy="150" r="{{s.moonR}}" style="fill: #eef1f8"></circle>
+    <ellipse cx="1040" cy="560" rx="560" ry="220" fill="url(#dglow)"></ellipse>
+    <path d="M0 520 L90 492 L170 505 L260 458 L330 474 L420 420 L500 440 L590 360 L660 300 L720 228 L784 282 L836 272 L900 332 L980 380 L1060 408 L1150 388 L1240 428 L1330 418 L1440 452 L1440 610 L0 610 Z" style="fill: {{s.range1}}"></path>
+    <path d="M660 300 L720 228 L784 282 L764 290 L746 272 L730 298 L710 282 L690 308 Z" style="fill: {{s.snow}}; opacity: 0.9"></path>
+    <path d="M0 560 L140 522 L250 546 L380 502 L470 530 L560 506 L650 540 L760 516 L880 548 L1000 506 L1120 536 L1250 500 L1360 528 L1440 512 L1440 610 L0 610 Z" style="fill: {{s.range2}}"></path>
+    <rect x="0" y="600" width="1440" height="424" fill="url(#dlake)"></rect>
+    <g transform="matrix(1 0 0 -1 0 1200)" style="opacity: 0.16">
+      <path d="M0 520 L90 492 L170 505 L260 458 L330 474 L420 420 L500 440 L590 360 L660 300 L720 228 L784 282 L836 272 L900 332 L980 380 L1060 408 L1150 388 L1240 428 L1330 418 L1440 452 L1440 600 L0 600 Z" style="fill: {{s.range1}}"></path>
+    </g>
+    <path d="M560 640 h260 v1.5 h-260 z M700 662 h180 v1.2 h-180 z M620 690 h120 v1 h-120 z M980 650 h140 v1.2 h-140 z" style="fill: #ffffff; opacity: 0.12"></path>
+    <path d="{{s.shore}}" style="fill: {{s.trees}}"></path>
+    <rect x="0" y="592" width="1440" height="9" style="fill: {{s.trees}}"></rect>
+    <path d="M0 610 L0 418 C80 428 180 468 260 518 C300 544 340 570 400 604 Z" style="fill: {{s.hills}}"></path>
+    <path d="M1440 610 L1440 398 C1360 418 1260 468 1180 528 C1140 558 1100 580 1050 604 Z" style="fill: {{s.hills}}"></path>
+    <path d="{{s.pinesL}}" style="fill: {{s.hills}}"></path>
+    <path d="{{s.pinesR}}" style="fill: {{s.hills}}"></path>
+    <rect x="0" y="640" width="1440" height="384" fill="url(#dfade)"></rect>
+  </svg>
+
+  <div style="position: absolute; top: 0; left: 0; width: 1440px; height: 1024px; box-sizing: border-box; padding: 20px; display: flex; gap: 24px">
+
+    <nav aria-label="ניווט ראשי" style="width: 76px; box-sizing: border-box; padding: 14px 0; border-radius: 24px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; align-items: center; gap: 10px">
+      <sc-for list="{{rail}}" as="r" hint-placeholder-count="5">
+        <a href="#" aria-label="{{r.label}}" style="width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: {{r.bg}}; color: {{r.fg}}">
+          <svg width="22" height="22" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="{{r.icon}}"></path></svg>
+        </a>
+      </sc-for>
+      <div style="flex-grow: 1"></div>
+      <div aria-label="טל" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #ffb27a, #e0703a); color: #1a0f08; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px">ט</div>
+    </nav>
+
+    <div style="flex-grow: 1; box-sizing: border-box; padding: 16px 20px 8px; display: flex; flex-direction: column">
+
+      <header style="height: 130px; display: flex; justify-content: space-between; align-items: flex-start">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 92px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; font-family: 'IBM Plex Sans Hebrew', sans-serif; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.25)"><bdi>19:08</bdi></div>
+          <div style="font-size: 20px; color: rgba(242, 245, 250, 0.86)">יום ראשון, 27 בספטמבר</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; padding-top: 6px">
+          <div style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); font-size: 14px">
+            <span style="width: 9px; height: 9px; border-radius: 50%; background: #5fd38d; box-shadow: 0 0 10px #5fd38d"></span>מחובר
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); font-size: 14px">
+            <svg width="15" height="15" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+            <span><bdi>Tailscale</bdi> מאובטח</span>
+          </div>
+          <button aria-label="חיפוש" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); color: #f2f5fa; display: flex; align-items: center; justify-content: center">
+            <svg width="19" height="19" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          </button>
+          <button aria-label="התראות" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); color: #f2f5fa; display: flex; align-items: center; justify-content: center; position: relative">
+            <svg width="19" height="19" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+            <span style="position: absolute; top: 9px; left: 11px; width: 8px; height: 8px; border-radius: 50%; background: #ff7a45"></span>
+          </button>
+        </div>
+      </header>
+
+      <div style="height: 140px"></div>
+
+      <section style="align-self: center; width: 860px; box-sizing: border-box; padding: 18px 18px 14px; border-radius: 26px; background: rgba(14, 20, 34, 0.42); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(24px) saturate(140%); display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 12px; height: 60px; box-sizing: border-box; padding: 0 8px 0 18px; border-radius: 18px; background: rgba(246, 248, 252, 0.94); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25)">
+          <svg width="22" height="22" viewBox="0 0 24 24" style="fill: #3d8bfd; stroke: none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"></path></svg>
+          <label for="ask" style="position: absolute; width: 1px; height: 1px; overflow: hidden">מה נעשה עכשיו</label>
+          <input id="ask" type="text" placeholder="תשאל או תבקש משהו… למשל: תפתח את trail-map ותריץ אותו" style="flex-grow: 1; height: 44px; border: none; background: transparent; color: #141a26; font-size: 17px; outline: none">
+          <button aria-label="שלח" style="width: 46px; height: 46px; border-radius: 14px; border: none; background: linear-gradient(180deg, #5aa2ff, #2f7cf0); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(47, 124, 240, 0.45)">
+            <svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M19 12H5"></path><path d="M11 6l-6 6 6 6"></path></svg>
+          </button>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 6px">
+          <div style="display: flex; gap: 8px">
+            <sc-for list="{{agents}}" as="a" hint-placeholder-count="3">
+              <button onClick="{{a.pick}}" style="height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; background: {{a.bg}}; color: {{a.fg}}; border: 1px solid {{a.bd}}"><bdi>{{a.label}}</bdi></button>
+            </sc-for>
+          </div>
+          <span style="font-size: 14px; color: rgba(242, 245, 250, 0.78)">שאל על הפרויקטים, הסוכנים, הקבצים והשרת</span>
+        </div>
+      </section>
+
+      <div style="flex-grow: 1"></div>
+
+      <section style="height: 172px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px">
+        <sc-for list="{{projects}}" as="p" hint-placeholder-count="8">
+          <a href="#" style="box-sizing: border-box; padding: 18px 10px 14px; border-radius: 20px; background: rgba(14, 20, 34, 0.46); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px) saturate(140%); color: #f2f5fa; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
+            <div style="width: 56px; height: 56px; border-radius: 16px; background: {{p.color}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px {{p.shadow}}; display: flex; align-items: center; justify-content: center; color: {{p.glyph}}; margin-bottom: 4px">
+              <svg width="28" height="28" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="{{p.icon}}"></path></svg>
+            </div>
+            <bdi style="font-size: 16px; font-weight: 600">{{p.name}}</bdi>
+            <span style="font-size: 12px; color: rgba(242, 245, 250, 0.7)">{{p.desc}}</span>
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 2px; color: {{p.dot}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{p.dot}}"></span>{{p.status}}</span>
+          </a>
+        </sc-for>
+      </section>
+
+      <div style="height: 20px"></div>
+
+      <section style="height: 206px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px">
+
+        <div style="grid-column: span 2; box-sizing: border-box; padding: 18px 22px; border-radius: 22px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1)">
+            <span style="display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500">
+              <svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"></path></svg>
+              <bdi>Mac mini M4</bdi>
+            </span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: rgba(242, 245, 250, 0.6)"><bdi>10 cores · 24 GB</bdi></span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+            <sc-for list="{{gauges}}" as="g" hint-placeholder-count="4">
+              <div style="position: relative; width: 104px; height: 104px; justify-self: center">
+                <svg width="104" height="104" viewBox="0 0 104 104">
+                  <circle cx="52" cy="52" r="44" style="fill: none; stroke: rgba(255, 255, 255, 0.1); stroke-width: 6"></circle>
+                  <circle cx="52" cy="52" r="44" transform="rotate(-90 52 52)" style="fill: none; stroke: {{g.color}}; stroke-width: 6; stroke-linecap: round; stroke-dasharray: {{g.dash}}"></circle>
+                </svg>
+                <div style="position: absolute; top: 0; left: 0; width: 104px; height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+                  <span style="font-size: 12px; color: rgba(242, 245, 250, 0.72)">{{g.label}}</span>
+                  <span style="font-size: 22px; font-weight: 500"><bdi>{{g.value}}</bdi></span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="grid-column: span 2; box-sizing: border-box; padding: 18px 22px; border-radius: 22px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1)">
+            <span style="display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500">
+              <svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M4 17l6-6-6-6"></path><path d="M12 19h8"></path></svg>
+              סוכנים ושירותים
+            </span>
+            <a href="#" style="font-size: 13px">הכל</a>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; row-gap: 11px">
+            <sc-for list="{{live}}" as="l" hint-placeholder-count="8">
+              <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; min-width: 0">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: {{l.dot}}; flex-shrink: 0"></span>
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><bdi>{{l.name}}</bdi> <span style="color: rgba(242, 245, 250, 0.62)">{{l.note}}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 18px 20px; border-radius: 22px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; gap: 10px; overflow: hidden">
+          <span style="display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            זמן פעילות
+          </span>
+          <span style="font-size: 34px; font-weight: 500; line-height: 1">17 ימים</span>
+          <svg width="200" height="70" viewBox="0 0 200 70" style="align-self: stretch">
+            <defs>
+              <linearGradient id="dup" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" style="stop-color: #5aa2ff; stop-opacity: 0.45"></stop>
+                <stop offset="1" style="stop-color: #5aa2ff; stop-opacity: 0"></stop>
+              </linearGradient>
+            </defs>
+            <path d="M0 58 C16 56 22 44 36 48 S56 58 70 44 S92 30 106 38 S128 48 142 30 S170 18 200 6 L200 70 L0 70 Z" fill="url(#dup)"></path>
+            <path d="M0 58 C16 56 22 44 36 48 S56 58 70 44 S92 30 106 38 S128 48 142 30 S170 18 200 6" style="fill: none; stroke: #7fb8ff; stroke-width: 2.2; stroke-linecap: round"></path>
+          </svg>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scene":{"editor":"enum","options":["dusk","night"],"default":"dusk"},"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { agent: 'claude' };
+  }
+  buildScene(kind) {
+    function rnd(i) { var x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+    function f(n) { return n.toFixed(1); }
+    function pine(x, base, h) {
+      var w = h * 0.46, d = '';
+      var bottoms = [0, 0.3, 0.55], apex = [0.55, 0.8, 1], half = [0.5, 0.38, 0.26];
+      for (var k = 0; k < 3; k++) {
+        var by = base - h * bottoms[k], ay = base - h * apex[k], hw = w * half[k];
+        d += 'M' + f(x - hw) + ' ' + f(by) + ' L' + f(x) + ' ' + f(ay) + ' L' + f(x + hw) + ' ' + f(by) + ' Z ';
+      }
+      d += 'M' + f(x - h * 0.03) + ' ' + f(base) + ' h' + f(h * 0.06) + ' v' + f(h * 0.08) + ' h' + f(-h * 0.06) + ' Z ';
+      return d;
+    }
+    var pinesL = '', pinesR = '', shore = '', stars = '';
+    for (var i = 0; i < 26; i++) {
+      var x = rnd(i) * 370, t = x / 390;
+      pinesL += pine(x, 438 + t * 160 + 22, (175 - t * 115) * (0.7 + rnd(i + 50) * 0.5));
+    }
+    for (var j = 0; j < 26; j++) {
+      var xr = 1440 - rnd(j + 100) * 380, tr = (1440 - xr) / 400;
+      pinesR += pine(xr, 418 + tr * 175 + 22, (180 - tr * 115) * (0.7 + rnd(j + 150) * 0.5));
+    }
+    for (var k2 = 0; k2 < 112; k2++) {
+      shore += pine(k2 * 13 + rnd(k2 + 200) * 8, 598, 10 + rnd(k2 + 300) * 22);
+    }
+    if (kind === 'night') {
+      for (var s = 0; s < 140; s++) {
+        var sx = rnd(s + 500) * 1440, sy = rnd(s + 900) * 380, sz = 0.8 + rnd(s + 1300) * 1.6;
+        stars += 'M' + f(sx) + ' ' + f(sy) + ' h' + f(sz) + ' v' + f(sz) + ' h' + f(-sz) + ' Z ';
+      }
+    }
+    var pal = kind === 'night' ? {
+      sky0: '#050a18', sky1: '#0d1833', sky2: '#1f2f58', sky3: '#34477a', glow: '#9fb4ea', glowOp: 0.35,
+      range1: '#26345a', snow: '#c9d3ea', range2: '#161f3a', hills: '#050912', trees: '#08101f',
+      lakeTop: '#27386a', lakeMid: '#101a34', lakeDeep: '#060b18', moonR: 22
+    } : {
+      sky0: '#1a2644', sky1: '#394a74', sky2: '#9b7b8e', sky3: '#f3b789', glow: '#ffd3a3', glowOp: 0.75,
+      range1: '#56648a', snow: '#f1e1dc', range2: '#2d3954', hills: '#0c1320', trees: '#101929',
+      lakeTop: '#8e7686', lakeMid: '#2a3753', lakeDeep: '#0e1627', moonR: 0
+    };
+    pal.pinesL = pinesL; pal.pinesR = pinesR; pal.shore = shore; pal.stars = stars || 'M0 0 Z';
+    return pal;
+  }
+  renderVals() {
+    var kind = this.props.scene === 'night' ? 'night' : 'dusk';
+    if (!this._scene || this._sceneKind !== kind) { this._scene = this.buildScene(kind); this._sceneKind = kind; }
+    var self = this;
+    var agents = [
+      { id: 'claude', label: 'Claude Code' },
+      { id: 'codex', label: 'Codex' },
+      { id: 'local', label: 'qwen3 מקומי' }
+    ].map(function (a) {
+      var on = a.id === self.state.agent;
+      return {
+        label: a.label,
+        bg: on ? 'rgba(90, 162, 255, 0.28)' : 'rgba(255, 255, 255, 0.06)',
+        fg: '#f2f5fa',
+        bd: on ? 'rgba(127, 184, 255, 0.8)' : 'rgba(255, 255, 255, 0.16)',
+        pick: function () { self.setState({ agent: a.id }); }
+      };
+    });
+    var rail = [
+      { label: 'הבית', icon: 'M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', on: true },
+      { label: 'פרויקטים', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
+      { label: 'סוכנים', icon: 'M4 17l6-6-6-6M12 19h8' },
+      { label: 'מודלים', icon: 'M6 6h12v12H6zM9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4' },
+      { label: 'גיבויים', icon: 'M3 5h18v4H3zM5 9v10h14V9M10 13h4' },
+      { label: 'הגדרות', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1' }
+    ].map(function (r) {
+      return { label: r.label, icon: r.icon, bg: r.on ? 'rgba(255, 255, 255, 0.16)' : 'transparent', fg: r.on ? '#7fb8ff' : 'rgba(242, 245, 250, 0.82)' };
+    });
+    var dots = { working: '#5fd38d', waiting: '#ffa552', review: '#7fb8ff', idle: 'rgba(242, 245, 250, 0.5)' };
+    var projects = [
+      { name: 'trail-map', desc: 'מפה ואירועים', status: 'Claude עובד', k: 'working', color: 'linear-gradient(160deg, #3cc4b0, #1d8a7c)', shadow: 'rgba(29, 138, 124, 0.45)', glyph: '#ffffff', icon: 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z' },
+      { name: 'camp-site', desc: 'קהילה ואירועים', status: 'מחכה לך', k: 'waiting', color: 'linear-gradient(160deg, #ff9a5c, #e0602a)', shadow: 'rgba(224, 96, 42, 0.45)', glyph: '#ffffff', icon: 'M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z' },
+      { name: 'revive', desc: 'חדר בקרה', status: '3 שינויים מהלילה', k: 'review', color: 'linear-gradient(160deg, #fbf6ec, #e3d9c6)', shadow: 'rgba(227, 217, 198, 0.35)', glyph: '#b8401c', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5' },
+      { name: 'job-board', desc: 'התאמת משרות', status: 'מוכן', k: 'idle', color: 'linear-gradient(160deg, #ff7fa0, #d9416a)', shadow: 'rgba(217, 65, 106, 0.4)', glyph: '#ffffff', icon: 'M12 20s-7-4.4-9-9a4.8 4.8 0 0 1 9-3 4.8 4.8 0 0 1 9 3c-2 4.6-9 9-9 9z' },
+      { name: 'rift-worlds', desc: 'משחק מובייל', status: 'מוכן', k: 'idle', color: 'linear-gradient(160deg, #9b8cff, #6450e6)', shadow: 'rgba(100, 80, 230, 0.45)', glyph: '#ffffff', icon: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM3.5 16.5c-1.5 2 0 2.8 3 1.6 3.3-1.3 8.2-4.6 11-7.5 2.4-2.5 2.6-4.2.2-3.6' },
+      { name: 'relay', desc: 'פיקוד מהטלפון', status: 'רץ על 3001', k: 'working', color: 'linear-gradient(160deg, #62a8ff, #2f6fe0)', shadow: 'rgba(47, 111, 224, 0.45)', glyph: '#ffffff', icon: 'M12 13v8M8.5 9.5a5 5 0 0 1 7 0M5.6 6.6a9 9 0 0 1 12.8 0M12 13.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4z' },
+      { name: 'loop', desc: 'מסחר ליוצרים', status: 'מוכן', k: 'idle', color: 'linear-gradient(160deg, #ffd166, #e9a91c)', shadow: 'rgba(233, 169, 28, 0.4)', glyph: '#3a2600', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2' },
+      { name: 'ride-share', desc: 'תכנון טיולים', status: 'מוכן', k: 'idle', color: 'linear-gradient(160deg, #6fdc8c, #2fa65a)', shadow: 'rgba(47, 166, 90, 0.4)', glyph: '#ffffff', icon: 'M4 8h16v11H4zM9 8V5h6v3M4 13h16' }
+    ].map(function (p) { return Object.assign({}, p, { dot: dots[p.k] }); });
+    var C = 2 * Math.PI * 44;
+    function gauge(label, value, frac, color) { return { label: label, value: value, color: color, dash: (C * frac).toFixed(1) + ' ' + C.toFixed(1) }; }
+    var gauges = [
+      gauge('מעבד', '18%', 0.18, '#5aa2ff'),
+      gauge('זיכרון', '59%', 0.59, '#5fd38d'),
+      gauge('דיסק', '41%', 0.41, '#b18cff'),
+      gauge('טמפ׳', '46°C', 0.46, '#ffa552')
+    ];
+    var live = [
+      { name: 'Claude Code', note: 'על trail-map', k: 'working' },
+      { name: 'Codex', note: 'מחכה לך', k: 'waiting' },
+      { name: 'משמרת לילה', note: 'הסתיימה', k: 'review' },
+      { name: 'Ollama', note: 'qwen3:14b טעון', k: 'working' },
+      { name: 'Revive Host', note: '3 מכשירים', k: 'working' },
+      { name: 'Tailscale', note: 'מחובר', k: 'working' },
+      { name: 'גיבוי לילי', note: '03:00', k: 'working' },
+      { name: 'pm2', note: 'הכל רץ', k: 'working' }
+    ].map(function (l) { return { name: l.name, note: l.note, dot: dots[l.k] }; });
+    return { s: this._scene, agents: agents, rail: rail, projects: projects, gauges: gauges, live: live };
+  }
+}
+</script>
+</body>
+</html>

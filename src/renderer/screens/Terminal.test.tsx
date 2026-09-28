@@ -20,8 +20,10 @@ vi.mock('@xterm/xterm', () => ({
     loadAddon() {}
     open() {}
     focus() {}
-    write(d: string) {
+    write(d: string, done?: () => void) {
       this.rec.written.push(d)
+      // Like xterm.js: finished parsing later, not during the call.
+      if (done) setTimeout(done, 50)
     }
     reset() {
       this.rec.resets += 1
@@ -79,6 +81,25 @@ describe('the terminal screen', () => {
     expect(terms.at(-1)!.written.at(-1)).toBe('rebuilt history\r\n')
   })
 
+  it('replaying a session’s history never answers its old terminal questions again', async () => {
+    terms.length = 0
+    const mock = await openTerminal()
+    const inputs = () => mock.calls.filter((c) => c.channel === 'session:input').map((c) => (c.args as { data: string }).data)
+    // History: the shell asked "what terminal are you?" when it started, long ago.
+    act(() => mock.emit('session:output', { sessionId: 'bakery-site:claude', offset: 0, epoch: 'e1', data: 'prompt\x1b[c\x1b[>c> ' }))
+    await waitFor(() => expect(terms.at(-1)!.written.join('')).toContain('prompt'))
+    // xterm.js answers while replaying it: dropped. What the person types still goes through.
+    terms.at(-1)!.onData!('\x1b[?1;2c')
+    terms.at(-1)!.onData!('\x1b[>0;276;0c')
+    terms.at(-1)!.onData!('ls\r')
+    expect(inputs()).toEqual(['ls\r'])
+    // Once the history is drawn, a program asking now gets its answer.
+    await new Promise((r) => setTimeout(r, 250))
+    act(() => mock.emit('session:output', { sessionId: 'bakery-site:claude', offset: 15, epoch: 'e1', data: '\x1b[c' }))
+    terms.at(-1)!.onData!('\x1b[?1;2c')
+    expect(inputs()).toEqual(['ls\r', '\x1b[?1;2c'])
+  })
+
   it('going back only detaches; ending the session asks first', async () => {
     const mock = await openTerminal()
     fireEvent.click(screen.getByTestId('terminal-end'))
@@ -130,6 +151,7 @@ describe('an agent that can’t start', () => {
       'sessions:open': () => ({ ok: false, kind: 'codex', problem: 'signed_out' })
     })
     renderApp()
+    fireEvent.click(await screen.findByTestId('nav-projects'))
     fireEvent.click((await screen.findAllByTestId('card-action'))[0]!)
     fireEvent.click(await screen.findByTestId('terminal-open-codex'))
     const notice = await screen.findByTestId('agent-problem')

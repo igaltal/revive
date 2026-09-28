@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen) · [x] M9 (browser client, phone PWA)
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen) · [x] M9 (browser client, phone PWA) · [x] M10 (look: Scenic and Paper, Home, Customize, screensavers)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -744,3 +744,119 @@ Built to `docs/HOST_PRD.md` H7 and "Security and privacy". The Home screen, scen
 - Playwright's WebKit browser was installed into Playwright's own cache (`npx playwright install webkit`); nothing system-wide.
 
 *Try it on your phone:* turn on sharing in Settings, then use the Tailscale button there (it shows the exact `tailscale serve --bg <port>` command and runs it only after you confirm). Open `https://<your Mac>.<tailnet>.ts.net` on the phone, and enter the code. Then Share → Add to Home Screen. Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M10: done (2026-09-28): the approved look, and control over it
+
+Built to `docs/HOST_PRD.md` "Screen experience", H4, H6 and H9, and the approved design in `docs/design/home/` (copied from your Downloads: `home-desktop.reference.html`, `home-phone.reference.html`, `README.md`).
+
+**1. Two themes, the whole app**
+- **Scenic:** frosted glass over a live scene, white text, colorful project tiles, and the reference's status colors (working `#5fd38d`, waiting `#ffa552`, review `#7fb8ff`, idle), plus a red for failed.
+  - On a computer, a glass rail replaces the sidebar; on a phone, a glass tab bar.
+  - Screens other than Home sit on one sheet of glass, so text never lies directly on a bright sky; the cards inside it become lighter panes.
+  - Dialogs, the terminal and Settings follow the theme.
+- **Paper:** today's look, unchanged. Its token values are pinned by a test.
+- **Default:** Scenic in Host and client mode, Paper in local mode. You can switch in Customize at any time.
+- **Tokens only.** Colors live in `src/renderer/theme/` (tokens and scene palettes) and reach components as CSS variables (`bg-card`, `text-muted`, `bg-accent-fill`…).
+  - A new lint rule, `color/no-raw-color`, rejects hex, `rgb()`/`hsl()`/`oklch()`, Tailwind palette classes and named colors anywhere else in the renderer.
+  - `tests/no-raw-color.test.ts` runs the rule over every renderer file.
+  - The phone's `theme-color` follows the look.
+
+**2. Vitals (H6)** (`services/vitals/`)
+- **What's read:** systeminformation gives CPU, memory (total minus available), disk (the Data volume on macOS), temperature, and uptime. Revive's own Host state gives Tailscale and the devices online. Ollama comes from `127.0.0.1:11434/api/ps` (loopback only, 1 s timeout).
+- **Temperature:** on this Apple silicon Mac systeminformation reports none, so the gauge is hidden and three gauges show.
+- **Sampling only while watched:**
+  - `vitals:watch` returns a lease of 20 s that the client renews every 8 s, and `vitals:unwatch` ends it.
+  - A client that disappears lets its lease run out, and sampling stops once no lease is left.
+  - Every 5 s a `vitals.updated` state event goes out on the runtime stream. The replay buffer keeps only the latest one, so vitals never push status changes out of it.
+
+**3. Scene engine** (`theme/scene.ts`)
+- **The port:** `buildScene(kind, width, height)` is a pure function. The test runs the reference's own `buildScene`, taken from both HTML files, and gets exactly the same pines, shore, stars and dusk/night palettes.
+- **Dawn and day** are added in the same shape.
+- **Framing:** wide screens use the desktop composition; tall screens use the phone's crop (`380 60 680 964` at 390×844) and its sky.
+- **Automatic sky:** by sunrise and sunset, computed locally (NOAA equations, `shared/sun.ts`, no network), for a city in Customize. The default is the device's time zone; 70 bundled cities, with Hebrew names. The app switches exactly when the sky changes, not by polling.
+- **Motion:** water shimmer and three twinkling star groups, at 8 fps (full) or 2 fps (less), set directly on the SVG.
+  - It pauses while the page is hidden.
+  - It is off under `prefers-reduced-motion` or when motion is set to off.
+
+**4. Home** (`screens/HomeScreen.tsx`)
+- **Desktop, as the reference:**
+  - a 92 px clock and the date, then the connection and "Tailscale secured" pills and a Customize button;
+  - the command bar with the Claude Code, Codex and Terminal chips;
+  - project tiles with an icon, a gradient and a live status line;
+  - vitals rings, agents and services, and uptime with a CPU sparkline.
+- **Phone, as the reference:** a short connection pill, the clock, a card for anything that needs you (a failed project, with one button), four tiles, the stats bar, and the tab bar.
+- **Command bar:** pick a project (type to filter the list) and an agent, and that session opens in the terminal. If the agent can't start, it says so with the same one sentence as the project page. Free text routing is later (H10).
+- **Local model chip:** hidden. Nothing to run it on yet.
+- **First screen:** Home in Host and client mode. In local mode it is one click away (the first sidebar item).
+
+**5. Customize** (Settings → Look, or the brush on Home)
+- **Every change shows at once on the whole app,** and is stored only after Save. Undo changes, or leaving the screen, puts everything back.
+- **Sections, each with "Reset to default":**
+  - look (Automatic / Scenic / Paper);
+  - scene (by time of day, or dawn/day/dusk/night with small previews, plus the city);
+  - your photo;
+  - glass (light, normal, strong);
+  - accent (6 presets and a custom picker);
+  - Home widgets (show, hide, move up and down);
+  - project tiles (compact/comfortable/large, and per project one of 40 icons and 12 colors, or the generated one, plus pin);
+  - clock (24/12 hours, seconds, date);
+  - motion (full, less, off);
+  - screensaver (mode, idle time, wake events, "Try it now").
+- **Photos:**
+  - Each photo is made small on the device (JPEG, 1920 px, 700 KB at most) and stored on the Host under `photos/<device>/`. It is served only to the device that added it: `/photos/<id>.jpg` with its cookie or token, and 404 for others.
+  - Its brightest spot (a 24×24 average) sets how much it is darkened. It shows blurred behind the glass.
+  - Removing a photo asks first. A revoked device's look and photos are deleted with it.
+- **Per device:** `appearance:get/set` always act for the calling device (from its token; this computer's window is `local`). A phone and a MacBook each keep their own, and language stays where it was.
+
+**6. Screensavers**
+- **Modes:** scene and clock; agent activity (the last line each agent printed); photos (changing every 20 s); dark.
+- **When it starts:** after 1 to 60 minutes idle, or never. A real key, click, touch or mouse movement starts the timer again.
+- **Waking:** a failed run, an agent that stops with an error, or (optional) an agent that finishes wakes it with a glow in the status color and one line naming it. "Waiting for you" is wired, but nothing produces it until the approval queue (H5).
+- **Burn-in:** everything moves along an 8-step walk of a few pixels every 3 minutes.
+- **Native preview:** the screensaver goes through `useOverlay`, so the preview is hidden under it.
+
+**Contrast (4.5:1).**
+- **The rule:** glass is never more see-through than the dimmest text needs. The worst case is the brightest thing a scene paints: the horizon glow, and the snow cap averaged with its ridge by the blur. Panes inside a sheet count too.
+- **Resulting glass opacity:**
+
+  | Scene | Opacity |
+  |---|---|
+  | Dawn | 0.69 |
+  | Day | 0.71 |
+  | Dusk | 0.67 |
+  | Night | 0.43 / 0.46 / 0.60 (light / normal / strong) |
+
+- **Trade-off:** the reference's 0.42–0.55 glass would put the hint text around 3:1 over the dusk glow. So in daylight scenes the glass is darker than the design, and the strength setting matters only at night. **This needs your decision.**
+- **Muted text** is 0.8 white instead of the reference's 0.62–0.78.
+- **Bright scenes (dawn and day)** get a top scrim so the date reads at 4.5:1 or better.
+- **Photos:** dimming guarantees the date on the brightest spot. It is tested with white, yellow, sky blue, pink and a dark photo.
+
+**Found and fixed along the way**
+- **Replayed history made xterm.js answer old terminal questions.**
+  - When a second view (another device, or the same page reopening) attached to a running shell, xterm answered tmux's startup queries in the history again. The answers (`ESC[?1;2c`, `ESC[>0;276;0c`, OSC colors) were typed into zsh as `1;2c0;276;0c`. This exists since M8.
+  - Now the terminal drops xterm's own answers while it replays history (`isTerminalReport`), and what the person types still goes through. Unit test, plus 4 reattachments in the screenshot run with a clean prompt.
+- **Trying a look remounted Customize and discarded the preview.** Trying another look redraws the whole app around Customize, and the unmount threw the draft away. Discarding now happens when the route leaves Customize.
+- **Tab bar over the key row.** On a phone the tab bar would cover the terminal's key row, so the terminal screen hides it; it has its own back button.
+
+**Tests.** 292 regular and 5 real-tmux unit tests, plus 12 e2e tests.
+- **New:**
+  - The scene port matches the reference, is deterministic, and has the right crops.
+  - Glass contrast holds per scene and strength, over bright photos, for the date, for panes, and for accent text. Paper is unchanged.
+  - Motion is off under reduced motion and pauses while hidden. The scene reports 0 fps with reduced motion and 8 otherwise.
+  - Sun times for Jerusalem, London, Sydney and polar places, the sky phases, and the time zone city.
+  - No raw colors, as a rule test and over the whole tree.
+  - Per-device looks through the real Host server: the phone's change never touches the MacBook or this computer. Photos go only to their owner; a non-JPEG is refused; nothing is logged.
+  - Vitals sample only while watched, stop on unwatch and on an expired lease, and replay keeps only the latest.
+  - Home: first in client mode, Paper in local mode, live tile status and vitals, the command bar opens the chosen session, leaving stops the watch, the widget order, and Hebrew.
+  - Customize: live preview, save, undo, per-section reset, widget order, pin.
+  - Screensaver: the idle timer, "never", waking on a failed run with the glow and the line, and the wake choices.
+- **e2e:** `e2e/screenshots.spec.ts` builds a Host with an 8-project showcase fixture and pairs two browsers, a 1440×1024 desktop and a 390×844 phone.
+  - Each sets its look through Customize. The phone ends in Paper while the MacBook stays Scenic, checked after reloads.
+  - It takes 32 pictures: Home, gallery, project page and terminal × Scenic/Paper × English/Hebrew × 1440/390. Plus the four skies on the desktop Home. They go in `screenshots/m10/` (not in git).
+  - The M7 and M9 specs now pass through Home first.
+
+**Notes for you**
+- **The glass trade-off above** is the main thing to look at in the pictures.
+- **Photo mode:** the screensaver's photo mode uses your uploaded photos (the same list as the background).
+- **Screenshots:** Scenic pictures use the design's dusk; the skies set shows the other three.
+- **Packaging** must include `out/web` as before. systeminformation is a new dependency.

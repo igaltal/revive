@@ -146,6 +146,9 @@ describe('client mode, on the other computer', () => {
       'runner:list': () => [{ projectId: 'bakery-site', status: 'running', url: 'http://127.0.0.1:61234/', port: 61234, reason: null, command: null, updatedAt: '' }]
     })
     renderApp()
+    // Home comes first in client mode; the gallery is one click away.
+    expect(await screen.findByTestId('home')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-projects'))
     const pill = await screen.findByTestId('connection-pill')
     expect(pill.textContent).toContain('Studio Mac')
     expect(pill.getAttribute('data-state')).toBe('open')

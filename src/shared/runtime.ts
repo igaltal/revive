@@ -1,3 +1,4 @@
+import type { Vitals } from './vitals'
 import type { VersionSummary } from './versions'
 
 /**
@@ -107,6 +108,8 @@ type StateEventBody =
       stoppedProjects: string[]
     }
   | { type: 'trash.emptied'; removedItems: number }
+  /** The Host's health, every few seconds while a client watches (only the latest is kept for replay). */
+  | { type: 'vitals.updated'; vitals: Vitals }
 
 export type StateEventInput = StateEventBody
 export type StateEvent = StateEventBody & { seq: number; at: string }
@@ -139,7 +142,8 @@ export const STATE_EVENT_TYPES = [
   'manifest.changed',
   'version.saved',
   'version.restored',
-  'trash.emptied'
+  'trash.emptied',
+  'vitals.updated'
 ] as const satisfies readonly StateEvent['type'][]
 
 // Compile-time check: every state event type is listed above (a new one can't be forgotten).

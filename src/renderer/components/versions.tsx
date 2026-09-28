@@ -208,7 +208,7 @@ export function TrashCard(): ReactNode {
             </Button>
             <Button
               data-testid="trash-empty-confirm"
-              className="bg-broken hover:bg-broken/90"
+              variant="danger"
               onClick={() => {
                 setConfirming(false)
                 void transport.invoke('trash:empty', { confirm: true })

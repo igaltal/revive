@@ -48,6 +48,9 @@ async function pairPhone(browser: Browser, host: { win: Page; origin: string }, 
   const ask = host.win.getByTestId('pairing-request')
   await expect(ask).toContainText(`Allow ${name} to connect?`, { timeout: 10_000 })
   await ask.getByTestId('pairing-allow').click()
+  // A device connected to a Host opens on Home (Scenic); the gallery is one tap away.
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('nav-projects').click()
   return { context, page }
 }
 
@@ -111,7 +114,7 @@ test('the phone: pair in the browser, approve on the Host, run a project, use th
   })
   expect(cached.length).toBeGreaterThan(5)
   expect(cached.every((u) => u === '/' || u === '/manifest.webmanifest' || u.startsWith('/icons/') || u.startsWith('/assets/'))).toBe(true)
-  expect(cached.some((u) => /shots|pair|whoami|logout|\/ws/.test(u))).toBe(false)
+  expect(cached.some((u) => /shots|photos|pair|whoami|logout|\/ws/.test(u))).toBe(false)
 
   // Revoke on the Host: the phone is signed out at once.
   await host.win.getByTestId('nav-projects').click()

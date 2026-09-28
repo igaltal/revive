@@ -1,4 +1,197 @@
 {
+  "home": {
+    "status": {
+      "agentWorking": "{agent} is working",
+      "runningOn": "Running on {port}",
+      "ready": "Ready"
+    },
+    "pill": {
+      "thisComputer": "This computer",
+      "open": "Connected",
+      "reconnecting": "Reconnecting",
+      "rejected": "Signed out",
+      "tailscale": "Tailscale secured"
+    },
+    "customize": "Customize the look",
+    "command": {
+      "label": "What to open now",
+      "placeholder": "Pick a project… for example {example}",
+      "go": "Open",
+      "agent": "Open with",
+      "terminal": "Terminal",
+      "hint": "Pick a project and who works on it",
+      "pickFirst": "Pick a project from the list first.",
+      "placeholderShort": "Pick a project…"
+    },
+    "vitals": {
+      "title": "This computer",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "temperature": "Temp"
+    },
+    "live": {
+      "title": "Agents and services",
+      "none": "Nothing running right now.",
+      "on": "on {project}",
+      "loaded": "{model} loaded",
+      "ready": "ready",
+      "stopped": "stopped",
+      "devices": "{count, plural, =0 {no devices connected} one {# device connected} other {# devices connected}}",
+      "tailscale": {
+        "on": "connected",
+        "serving": "sharing this computer",
+        "off": "off"
+      }
+    },
+    "uptime": {
+      "title": "Uptime",
+      "cpu": "CPU over the last few minutes",
+      "short": "Up"
+    },
+    "attention": {
+      "failed": "Stopped working and needs you",
+      "open": "See what happened"
+    }
+  },
+  "saver": {
+    "label": "Screensaver. Touch or press any key to go back.",
+    "alert": {
+      "runFailed": "{project} stopped working",
+      "agentFailed": "{agent} stopped with an error on {project}",
+      "agentFinished": "{agent} finished on {project}"
+    },
+    "noPhotos": "Add photos in Customize to see them here.",
+    "noAgents": "No agents are working right now."
+  },
+  "customize": {
+    "title": "Customize",
+    "subtitle": "How Revive looks on this device. Other devices keep their own look.",
+    "reset": "Reset to default",
+    "discard": "Undo changes",
+    "save": "Save",
+    "unsaved": "You're seeing your changes. Save to keep them.",
+    "leave": "Leave without saving",
+    "done": "Done",
+    "theme": {
+      "title": "Look",
+      "hint": "Scenic puts frosted glass over a landscape. Paper is warm and plain.",
+      "default": "Automatic",
+      "defaultLocal": "Paper while you work on this computer",
+      "defaultShared": "Scenic while sharing or connected",
+      "scenic": "Scenic",
+      "scenicHint": "Glass over a live scene",
+      "paper": "Paper",
+      "paperHint": "Warm, light and quiet"
+    },
+    "scene": {
+      "title": "Scene",
+      "hint": "Showing now: {scene}.",
+      "auto": "By time of day",
+      "autoHint": "Follows sunrise and sunset",
+      "dawn": "Dawn",
+      "day": "Day",
+      "dusk": "Dusk",
+      "night": "Night",
+      "city": "Sunrise and sunset for",
+      "cityAuto": "Automatic ({city}, from this device's time zone)"
+    },
+    "background": {
+      "title": "Your photo",
+      "hint": "A photo of yours behind the glass, instead of the scene.",
+      "scene": "The scene",
+      "use": "Use this photo",
+      "remove": "Remove",
+      "add": "Add a photo",
+      "problem": "That photo couldn't be used. Try a JPEG or PNG picture.",
+      "note": "Photos are made smaller on this device and kept on the computer doing the work. They're blurred and darkened so text stays easy to read. They show in the Scenic look.",
+      "removeTitle": "Remove this photo?",
+      "removeYes": "Remove photo",
+      "removeBody": "It's deleted from the computer that keeps it. If it's your background, the scene comes back."
+    },
+    "glass": {
+      "title": "Glass",
+      "hint": "How much of the scene shows through. Text always stays easy to read, so on bright scenes the glass is never lighter than that allows.",
+      "light": "Light",
+      "normal": "Normal",
+      "strong": "Strong"
+    },
+    "accent": {
+      "title": "Accent color",
+      "hint": "For buttons, the selected tab and highlights.",
+      "default": "The look's own",
+      "blue": "Blue",
+      "teal": "Teal",
+      "orange": "Orange",
+      "pink": "Pink",
+      "violet": "Violet",
+      "gold": "Gold",
+      "custom": "Your color"
+    },
+    "widgets": {
+      "title": "Home screen",
+      "hint": "Show, hide and reorder what's on Home.",
+      "command": "Command bar",
+      "tiles": "Project tiles",
+      "vitals": "Computer health",
+      "agents": "Agents and services",
+      "uptime": "Uptime",
+      "up": "Move up",
+      "down": "Move down"
+    },
+    "tiles": {
+      "title": "Project tiles",
+      "hint": "Size, and for each project its icon and color. Pinned projects come first.",
+      "density": "Tile size",
+      "compact": "Compact",
+      "comfortable": "Comfortable",
+      "large": "Large",
+      "pinned": "Pinned",
+      "pin": "Pin",
+      "change": "Change",
+      "close": "Close",
+      "icon": "Icon",
+      "iconN": "Icon {n}",
+      "color": "Color",
+      "colorN": "Color {n}",
+      "generated": "Use the automatic one"
+    },
+    "clock": {
+      "title": "Clock",
+      "h24": "24 hour",
+      "h12": "12 hour",
+      "seconds": "Show seconds",
+      "date": "Show the date"
+    },
+    "motion": {
+      "title": "Motion",
+      "hint": "Water shimmer and twinkling stars, a few frames a second. Paused when the window is hidden.",
+      "system": "This device asks for less motion, so the scene stays still.",
+      "full": "Full",
+      "reduced": "Less",
+      "off": "Off"
+    },
+    "saver": {
+      "title": "Screensaver",
+      "hint": "What the screen shows after a while without use.",
+      "scene": "Scene and clock",
+      "sceneHint": "For a second screen or a tablet",
+      "activity": "Agent activity",
+      "activityHint": "What each agent is doing",
+      "photos": "Photos",
+      "photosHint": "Your photos, changing slowly",
+      "dark": "Dark",
+      "darkHint": "Nearly black, for the night",
+      "idle": "Start after",
+      "never": "Never",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "wake": "Wake it up when:",
+      "wake_waiting": "An agent is waiting for you",
+      "wake_failed": "A project or agent fails",
+      "wake_finished": "An agent finishes",
+      "preview": "Try it now"
+    }
+  },
   "terminalKeys": {
     "label": "Keys",
     "smaller": "Smaller text",
@@ -38,7 +231,8 @@
     "checkIfItWorks": "Check if it works",
     "myProjects": "My projects",
     "settings": "Settings",
-    "history": "History"
+    "history": "History",
+    "home": "Home"
   },
   "nav": {
     "label": "Main menu"
@@ -89,6 +283,11 @@
       "title": "Keep agents running after Revive quits",
       "hint": "Claude Code, Codex and terminals keep working when you quit Revive. Projects you started still stop.",
       "noTmux": "This needs tmux: brew install tmux"
+    },
+    "look": {
+      "title": "Look",
+      "hint": "Scene, glass, colors, Home and the screensaver, for this device.",
+      "button": "Customize the look"
     }
   },
   "projects": {

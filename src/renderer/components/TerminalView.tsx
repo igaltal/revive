@@ -5,7 +5,8 @@ import '@xterm/xterm/css/xterm.css'
 import { transport } from '@/transport'
 import { useT } from '@/i18n/useT'
 import { cx } from './cx'
-import { clampFont, FONT_SIZES, KEY_ROW, keySequence, withCtrl, type RowKey } from './terminal-keys'
+import { useAppearanceMaybe } from '@/state/appearance'
+import { clampFont, FONT_SIZES, isTerminalReport, KEY_ROW, keySequence, withCtrl, type RowKey } from './terminal-keys'
 
 /**
  * Monospace first; Hebrew falls back to a font that has it. xterm.js has no
@@ -23,6 +24,15 @@ function savedFont(): number {
   } catch {
     return FONT_SIZES.default
   }
+}
+
+/** The terminal's colors come from the theme, like everything else. */
+function terminalColors(): { background?: string; foreground?: string; cursor?: string } {
+  if (typeof getComputedStyle !== 'function') return {}
+  const css = getComputedStyle(document.documentElement)
+  const background = css.getPropertyValue('--color-terminal').trim() || undefined
+  const foreground = css.getPropertyValue('--color-terminal-ink').trim() || undefined
+  return { background, foreground, cursor: foreground }
 }
 
 /** A phone or tablet: a coarse pointer, or a narrow screen. */
@@ -92,22 +102,38 @@ export function TerminalView({ sessionId }: { sessionId: string }): ReactNode {
   useEffect(() => {
     const el = box.current
     if (!el) return
-    const term = new Terminal({ fontFamily: FONT, fontSize: savedFont(), cursorBlink: true, scrollback: 10_000, allowProposedApi: false, theme: { background: '#1d1b18', foreground: '#ece8df' } })
+    const term = new Terminal({ fontFamily: FONT, fontSize: savedFont(), cursorBlink: true, scrollback: 10_000, allowProposedApi: false, theme: terminalColors() })
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
 
+    // The first chunk is the session's history. Replaying it, xterm.js answers the terminal
+    // queries the program made back then (device attributes, cursor position); those answers
+    // must not reach the program now, or they arrive as stray text ("1;2c0;276;0c").
+    let replaying = 0
+    let first = true
     const off = transport.subscribe(
       'session:output',
       (chunk) => {
         // The Host restarted and rebuilt this session's output: start the screen over.
-        if (chunk.reset) term.reset()
-        term.write(chunk.data)
+        if (chunk.reset) {
+          term.reset()
+          first = true
+        }
+        if (!first) return term.write(chunk.data)
+        first = false
+        replaying += 1
+        term.write(chunk.data, () => {
+          replaying -= 1
+        })
       },
       { sessionId, fromOffset: 0 }
     )
-    const typing = term.onData((data) => sendRef.current(data))
+    const typing = term.onData((data) => {
+      if (replaying > 0 && isTerminalReport(data)) return
+      sendRef.current(data)
+    })
 
     let last = ''
     const resize = () => {
@@ -136,6 +162,12 @@ export function TerminalView({ sessionId }: { sessionId: string }): ReactNode {
       fitRef.current = null
     }
   }, [sessionId])
+
+  // A new theme repaints the open terminal.
+  const theme = useAppearanceMaybe()?.theme
+  useEffect(() => {
+    if (termRef.current?.options) termRef.current.options.theme = terminalColors()
+  }, [theme])
 
   // Font size: buttons or a two-finger pinch. Remembered on this device.
   const applyFont = (n: number) => {
@@ -172,7 +204,7 @@ export function TerminalView({ sessionId }: { sessionId: string }): ReactNode {
         data-testid="terminal-view"
         data-session={sessionId}
         data-font-size={fontSize}
-        className="min-h-[420px] w-full flex-1 overflow-hidden rounded-[10px] bg-[#1d1b18] p-2 max-[639px]:h-[55svh] max-[639px]:min-h-[240px] max-[639px]:flex-none"
+        className="min-h-[420px] w-full flex-1 overflow-hidden rounded-[10px] bg-terminal p-2 max-[639px]:h-[55svh] max-[639px]:min-h-[240px] max-[639px]:flex-none"
         onTouchStart={(e) => {
           if (e.touches.length === 2) pinch.current = { distance: distance(e), size: fontSize }
         }}
@@ -192,7 +224,7 @@ export function TerminalView({ sessionId }: { sessionId: string }): ReactNode {
               // Keep the terminal focused (and the keyboard open) while tapping.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => press(key)}
-              className={cx('min-h-[40px] min-w-[44px] flex-1 rounded-[8px] border border-border px-2 font-mono text-sm', key === 'ctrl' && ctrlOn ? 'bg-ink text-white' : 'bg-bg text-ink')}
+              className={cx('min-h-[40px] min-w-[44px] flex-1 rounded-[8px] border border-border px-2 font-mono text-sm', key === 'ctrl' && ctrlOn ? 'bg-primary text-on-primary' : 'bg-bg text-ink')}
             >
               {LABELS[key]}
             </button>

@@ -127,7 +127,7 @@ export function TerminalScreen({ projectId, sessionId, onBack }: { projectId: st
             </Button>
             <Button
               data-testid="terminal-end-confirm-button"
-              className="bg-broken hover:bg-broken/90"
+              variant="danger"
               onClick={() => {
                 if (ending) void transport.invoke('sessions:close', { sessionId: ending.sessionId, confirm: true })
                 setEnding(null)

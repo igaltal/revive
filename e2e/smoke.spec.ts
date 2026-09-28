@@ -300,7 +300,10 @@ test('Host and client: pair through the UI, work from the other window, survive 
   expect(existsSync(join(hostData, 'devices.json'))).toBe(false)
   await ask.getByTestId('pairing-allow').click()
 
-  // The client window becomes a window onto the Host: its projects, its name in the sidebar.
+  // The client window becomes a window onto the Host: Home first (in the Scenic look), then its projects and its name.
+  await expect(cwin.getByTestId('home')).toBeVisible({ timeout: 15_000 })
+  await expect(cwin.locator('html')).toHaveAttribute('data-theme', 'scenic')
+  await cwin.getByTestId('nav-projects').click()
   await expect(cwin.getByTestId('project-card')).toHaveCount(2, { timeout: 15_000 })
   const pill = cwin.getByTestId('connection-pill')
   await expect(pill).toHaveAttribute('data-state', 'open')

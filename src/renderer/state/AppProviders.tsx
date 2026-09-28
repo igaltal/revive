@@ -5,19 +5,22 @@ import { RuntimeProvider } from './runtime'
 import { OverlayProvider } from './overlay'
 import { VersionsProvider } from './versions'
 import { ClientProvider } from './client'
+import { AppearanceProvider } from './appearance'
 
 export function AppProviders({ children }: { children: ReactNode }): ReactNode {
   return (
     <ClientProvider>
-      <SettingsProvider>
-        <ProjectsProvider>
-          <RuntimeProvider>
-            <VersionsProvider>
-              <OverlayProvider>{children}</OverlayProvider>
-            </VersionsProvider>
-          </RuntimeProvider>
-        </ProjectsProvider>
-      </SettingsProvider>
+      <AppearanceProvider>
+        <SettingsProvider>
+          <ProjectsProvider>
+            <RuntimeProvider>
+              <VersionsProvider>
+                <OverlayProvider>{children}</OverlayProvider>
+              </VersionsProvider>
+            </RuntimeProvider>
+          </ProjectsProvider>
+        </SettingsProvider>
+      </AppearanceProvider>
     </ClientProvider>
   )
 }

@@ -25,7 +25,7 @@ export function WelcomeLanguage(): ReactNode {
           >
             <span className="font-display text-2xl leading-snug text-ink">{t('welcome.title', { lng: lang })}</span>
             <span className="text-sm text-muted">{t('welcome.subtitle', { lng: lang })}</span>
-            <span className="mt-4 inline-flex min-h-[42px] items-center gap-2 rounded-[10px] bg-ink px-4 text-[15px] font-medium text-white">
+            <span className="mt-4 inline-flex min-h-[42px] items-center gap-2 rounded-[10px] bg-primary px-4 text-[15px] font-medium text-on-primary">
               {t('welcome.continueIn', { lng: lang })}
               <ArrowForward />
             </span>

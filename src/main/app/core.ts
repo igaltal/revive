@@ -14,6 +14,8 @@ import { Terminals, type TerminalKind } from '../services/terminals'
 import type { AgentCheck } from '../services/agent-check'
 import { Sessions } from '../services/sessions/sessions'
 import type { Core } from '../contract/handlers'
+import { AppearanceStore } from '../services/appearance/appearance-store'
+import { VitalsService, type Clock, type VitalsSampler } from '../services/vitals/vitals-service'
 
 export interface CoreOptions {
   userData: string
@@ -31,6 +33,14 @@ export interface CoreOptions {
   agentCommands?: Partial<Record<TerminalKind, { file: string; args: string[] }>>
   /** Checks Claude Code and Codex are installed and signed in before a session starts. */
   agentCheck?: AgentCheck
+  /** Reads CPU, memory and disk (systeminformation in the app; a stand-in in tests). */
+  vitalsSampler?: VitalsSampler
+  vitalsClock?: Clock
+}
+
+/** For setups that don't read the machine: every number zero. */
+const NO_READINGS: VitalsSampler = {
+  sample: async () => ({ machine: { name: 'Revive', cpu: '', cores: 0, memoryBytes: 0 }, cpu: 0, memory: 0, disk: 0, temperature: null, uptimeSeconds: 0, ollama: { state: 'missing', models: [] } })
 }
 
 /**
@@ -82,7 +92,9 @@ export function createCore(opts: CoreOptions): Core {
 
   const terminals = new Terminals(hub, workspace, undefined, opts.agentCommands, opts.agentCheck)
   const sessions = new Sessions({ hub, backend: opts.backend, projects: workspace, runner, tmuxVersion: opts.tmuxVersion ?? null })
-  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, sessions, guard: opts.guard }
+  const appearance = new AppearanceStore(opts.userData)
+  const vitals = new VitalsService(opts.vitalsSampler ?? NO_READINGS, bus, opts.vitalsClock)
+  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, sessions, appearance, vitals, guard: opts.guard }
 }
 
 /** For setups without Claude (the offline test agent): nothing to check. */

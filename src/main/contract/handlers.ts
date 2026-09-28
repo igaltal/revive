@@ -20,6 +20,8 @@ import type { Terminals } from '../services/terminals'
 import type { Sessions } from '../services/sessions/sessions'
 import { parseSessionId as parseId } from '@shared/runtime'
 import type { ServerStreams } from './streams'
+import type { AppearanceStore } from '../services/appearance/appearance-store'
+import type { VitalsService } from '../services/vitals/vitals-service'
 
 /** What only the desktop app can do. Tests and headless setups pass a stand-in. */
 export interface Platform {
@@ -48,6 +50,9 @@ export interface Core {
   streams: ServerStreams
   terminals: Terminals
   sessions: Sessions
+  /** Each device's look and photos. */
+  appearance: AppearanceStore
+  vitals: VitalsService
   guard: { current: () => GuardState; recheck: () => Promise<GuardState> }
 }
 
@@ -144,6 +149,15 @@ export function createHandlers(core: Core, platform: Platform): CoreHandlers {
     'sessions:close': ({ sessionId }) => core.terminals.close(parseId(sessionId)!),
     'sessions:list': () => core.terminals.list(),
     'sessions:info': () => core.sessions.info(),
-    'sessions:endOrphan': ({ name }) => core.sessions.endOrphan(name)
+    'sessions:endOrphan': ({ name }) => core.sessions.endOrphan(name),
+
+    // Always the calling device's own look: a device can never name another.
+    'appearance:get': (_, ctx) => core.appearance.get(ctx.device.id),
+    'appearance:set': (patch, ctx) => core.appearance.set(ctx.device.id, patch),
+    'photos:add': ({ jpegBase64, worst }, ctx) => core.appearance.addPhoto(ctx.device.id, Buffer.from(jpegBase64, 'base64'), worst),
+    'photos:remove': ({ id }, ctx) => core.appearance.removePhoto(ctx.device.id, id),
+
+    'vitals:watch': ({ leaseId }) => core.vitals.watch(leaseId),
+    'vitals:unwatch': ({ leaseId }) => core.vitals.unwatch(leaseId)
   }
 }

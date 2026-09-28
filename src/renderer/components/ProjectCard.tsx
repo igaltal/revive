@@ -21,7 +21,7 @@ export function localized(text: { en: string; he: string }, lang: string): strin
 
 /** The picture from the last successful start; a neutral placeholder before that. */
 export function ProjectPicture({ project, src, className = 'aspect-[16/10]' }: { project: Project; src?: string | null; className?: string }): ReactNode {
-  if (src) return <img src={src} alt="" data-testid="project-picture" className={cx(className, 'w-full border-b border-border bg-white object-cover object-top')} />
+  if (src) return <img src={src} alt="" data-testid="project-picture" className={cx(className, 'w-full border-b border-border bg-picture object-cover object-top')} />
   return (
     <div className={cx(className, 'flex w-full items-center justify-center border-b border-border bg-bg')} aria-hidden>
       <span className="font-display text-5xl text-muted/60">

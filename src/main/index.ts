@@ -1,6 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerMonitor, powerSaveBlocker, session, shell, Tray } from 'electron'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { LOCAL_DEVICE } from '@shared/host'
+import { systemSampler } from './services/vitals/system-sampler'
 import type { GuardState } from '@shared/guard'
 import { exec } from './exec'
 import { loadShellPath } from './shell-env'
@@ -143,7 +146,8 @@ void app.whenReady().then(async () => {
     adapter: testAgent ? fakeAdapter(testAgent) : createClaudeAdapter(guard),
     guard: testAgent ? SKIPPED_GUARD : { current: (): GuardState => guard.current(), recheck: () => guard.ensure(true) },
     shellReady,
-    capturePage
+    capturePage,
+    vitalsSampler: systemSampler({ name: computerName(), exec })
   })
   const c = core
   if (!testAgent) void shellReady.then(() => guard.ensure())
@@ -228,12 +232,24 @@ void app.whenReady().then(async () => {
     // Tests only (unpackaged): the https stand-in for `tailscale serve` in the WebKit test.
     extraPublicHosts: dev && process.env['REVIVE_TEST_PUBLIC_HOST'] ? [process.env['REVIVE_TEST_PUBLIC_HOST']] : []
   })
+  // Vitals name Tailscale and the devices connected right now.
+  c.vitals.setSources({
+    tailscale: () => ({ missing: 'missing', available: 'on', serving: 'serving', error: 'off' } as const)[host.status().tailscale.state],
+    devicesOnline: () => {
+      const st = host.status()
+      return st.sharing ? st.devices.filter((d) => d.online).length : null
+    }
+  })
   router = new AppRouter(out, c, logged, withActionLog(createAppHandlers(host, client), log), client)
   const r = router
 
   handleAssetProtocol(
     () => c.workspace.projectIds(),
-    () => (client.mode === 'client' ? (path) => client.asset(path) : null)
+    () => (client.mode === 'client' ? (path) => client.asset(path) : null),
+    (photoId) => {
+      const file = c.appearance.ownsPhoto(LOCAL_DEVICE.id, photoId) ? c.appearance.photoFile(LOCAL_DEVICE.id, photoId) : null
+      return file && existsSync(file) ? file : null
+    }
   )
   registerIpc({ ipcMain, handlers: r.handlers(), streams: r.out, sessions: r.sessions(), target: () => mainWindow?.webContents ?? null, checkOutputs })
 

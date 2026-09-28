@@ -1,24 +1,67 @@
 @import 'tailwindcss';
 @import './fonts.css';
 
-/* Design tokens. Warm, light, no gradients. */
+/*
+ * Design tokens. These defaults are Paper (the warm editorial look), so the
+ * first paint before any script runs looks as it always did. The appearance
+ * provider sets the same variables on <html> for the chosen theme (see
+ * tokens.ts); components only ever use the names.
+ */
 @theme {
+  --color-page: #f4f2ec;
   --color-bg: #f4f2ec;
   --color-card: #ffffff;
   --color-border: #e4e0d8;
   --color-ink: #1b1a17;
   --color-muted: #6b675e;
+  --color-on-scene: #1b1a17;
   --color-accent: #d9480f;
+  --color-accent-fill: #d9480f;
+  --color-on-accent: #ffffff;
+  --color-primary: #1b1a17;
+  --color-on-primary: #ffffff;
   --color-running: #1e8e4e;
   --color-verified: #2563eb;
   --color-attention: #b7791f;
   --color-broken: #b42318;
+  --color-on-broken: #ffffff;
+  --color-idle: #8a857a;
+  --color-subtle: rgba(27, 26, 23, 0.04);
+  --color-scrim: rgba(27, 26, 23, 0.3);
+  --color-field: #ffffff;
+  --color-field-ink: #1b1a17;
+  --color-field-muted: #6b675e;
+  --color-knob: #ffffff;
+  --color-picture: #ffffff;
+  --color-terminal: #1d1b18;
+  --color-terminal-ink: #ece8df;
+  --color-gauge-cpu: #2563eb;
+  --color-gauge-memory: #1e8e4e;
+  --color-gauge-disk: #7c3aed;
+  --color-gauge-temperature: #b7791f;
 
   --font-display: 'Frank Ruhl Libre', 'IBM Plex Sans Hebrew', serif;
   --font-sans: 'IBM Plex Sans Hebrew', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   --radius-control: 10px;
+}
+
+/* Frosted glass: the card color with the theme's blur (none in Paper). */
+@utility glass {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  backdrop-filter: var(--glass-filter, none);
+  -webkit-backdrop-filter: var(--glass-filter, none);
+}
+
+/* Text straight on the scene (the clock and date): a soft shadow in Scenic, none in Paper. */
+@utility scene-text {
+  color: var(--color-on-scene);
+  text-shadow: var(--scene-text-shadow, none);
+}
+@utility panel-shadow {
+  box-shadow: var(--panel-shadow, none);
 }
 
 @layer base {
@@ -28,7 +71,7 @@
     height: 100%;
   }
   body {
-    background: var(--color-bg);
+    background: var(--color-page);
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -46,4 +89,30 @@
   bdi {
     unicode-bidi: isolate;
   }
+}
+
+/*
+ * Scenic overrides. Outside any layer on purpose: they must win over the
+ * utility classes (which sit in Tailwind's utilities layer).
+ */
+/* Scenic: every card is glass, and headings use the sans face, light, as in the design. */
+[data-theme='scenic'] :is(.bg-card, [class*='bg-card/']) {
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+}
+[data-theme='scenic'] :is(h1, h2, h3) {
+  font-family: var(--font-sans);
+}
+[data-theme='scenic'] h1 {
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+[data-theme='scenic'] body {
+  background: var(--color-page);
+}
+/* On a sheet of glass, the cards inside are lighter panes, not glass on glass. */
+[data-theme='scenic'] .sheet :is(.bg-card, [class*='bg-card/']):not(.glass) {
+  background-color: var(--color-subtle);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }

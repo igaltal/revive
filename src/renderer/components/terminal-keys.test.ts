@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampFont, keySequence, withCtrl } from './terminal-keys'
+import { clampFont, isTerminalReport, keySequence, withCtrl } from './terminal-keys'
 
 describe('the phone key row', () => {
   it('sends the right bytes', () => {
@@ -26,5 +26,12 @@ describe('the phone key row', () => {
     expect(clampFont(3)).toBe(9)
     expect(clampFont(40)).toBe(24)
     expect(clampFont(14.4)).toBe(14)
+  })
+})
+
+describe('answers a terminal sends by itself', () => {
+  it('are recognized, so a replayed history can’t make them reach the program again', () => {
+    for (const r of ['\x1b[?1;2c', '\x1b[>0;276;0c', '\x1b[?1;2c\x1b[>0;276;0c', '\x1b[12;40R', '\x1b[0n', '\x1b[I', '\x1b]11;rgb:1d1d/1b1b/1818\x07', '\x1b]10;rgb:ecec/e8e8/dfdf\x1b\\']) expect(isTerminalReport(r), JSON.stringify(r)).toBe(true)
+    for (const typed of ['ls\r', 'c', '\x1b[A', '\x1b', '\t', '\x03', 'echo "1;2c"\r']) expect(isTerminalReport(typed), JSON.stringify(typed)).toBe(false)
   })
 })

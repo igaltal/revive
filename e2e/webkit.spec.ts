@@ -43,6 +43,10 @@ test('iPhone engine over https: pair, approve, see the projects, use the termina
   await expect(win.getByTestId('pairing-request')).toContainText('Allow Test iPhone to connect?', { timeout: 10_000 })
   await win.getByTestId('pairing-allow').click()
 
+  // A phone connected to a Host opens on Home; the projects are one tap away.
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 15_000 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
+  await page.getByTestId('nav-projects').click()
   await expect(page.getByTestId('project-card')).toHaveCount(2, { timeout: 15_000 })
   const cookie = (await context.cookies()).find((c) => c.name === 'revive_device')!
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: 'Strict' })

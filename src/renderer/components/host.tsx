@@ -22,7 +22,7 @@ export function Switch({ checked, onChange, label, testId, disabled }: { checked
       className="flex min-h-[42px] items-center gap-3 text-start text-[15px] text-ink disabled:opacity-50"
     >
       <span className={cx('relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors', checked ? 'bg-running' : 'bg-border')}>
-        <span className={cx('absolute top-0.5 size-5 rounded-full bg-white shadow transition-[inset-inline-start]', checked ? 'start-[22px]' : 'start-0.5')} />
+        <span className={cx('absolute top-0.5 size-5 rounded-full bg-knob shadow transition-[inset-inline-start]', checked ? 'start-[22px]' : 'start-0.5')} />
       </span>
       {label}
     </button>
@@ -94,7 +94,7 @@ export function PairingDialog({ open, onClose, hostCode }: { open: boolean; onCl
       {code ? (
         <div className="flex flex-wrap items-center gap-6">
           {/* The SVG comes from main's QR generator for our own link: a data URL, never inline markup. */}
-          <img alt={tx('host.pair.qrAlt') as string} className="size-40 rounded-md border border-border bg-white p-1" src={`data:image/svg+xml;utf8,${encodeURIComponent(code.qrSvg)}`} data-testid="pairing-qr" />
+          <img alt={tx('host.pair.qrAlt') as string} className="size-40 rounded-md border border-border bg-picture p-1" src={`data:image/svg+xml;utf8,${encodeURIComponent(code.qrSvg)}`} data-testid="pairing-qr" />
           <div className="flex flex-col gap-2">
             <span dir="ltr" className="font-mono text-4xl tracking-[0.3em] text-ink" data-testid="pairing-code">
               {code.code}
@@ -174,7 +174,7 @@ function Devices({ host }: { host: HostStatus }): ReactNode {
             </Button>
             <Button
               data-testid="device-revoke-confirm"
-              className="bg-broken hover:bg-broken/90"
+              variant="danger"
               onClick={() => {
                 if (revoking) void transport.invoke('host:revokeDevice', { deviceId: revoking.id })
                 setRevoking(null)

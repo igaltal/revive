@@ -10,6 +10,13 @@ export interface Option<V extends string> {
   dir?: 'rtl' | 'ltr'
 }
 
+const COLUMNS = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-2 min-[640px]:grid-cols-4',
+  5: 'grid-cols-2 min-[640px]:grid-cols-5'
+} as const
+
 /** A radio group drawn as cards. */
 export function OptionCards<V extends string>({
   label,
@@ -23,11 +30,11 @@ export function OptionCards<V extends string>({
   value: V
   options: Option<V>[]
   onChange: (v: V) => void
-  columns?: 2 | 3
+  columns?: 2 | 3 | 4 | 5
   testId?: string
 }): ReactNode {
   return (
-    <div role="radiogroup" aria-label={label} data-testid={testId} className={cx('grid gap-3', columns === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+    <div role="radiogroup" aria-label={label} data-testid={testId} className={cx('grid gap-3', COLUMNS[columns])}>
       {options.map((o) => {
         const selected = o.value === value
         return (
@@ -36,6 +43,7 @@ export function OptionCards<V extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            data-value={o.value}
             lang={o.lang}
             dir={o.dir}
             onClick={() => onChange(o.value)}

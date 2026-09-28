@@ -9,6 +9,8 @@ import type { GuardState } from './guard'
 import { parseSessionId, SESSION_KINDS, type RunState, type SessionOutput, type StateEvent } from './runtime'
 import type { ActivityEntry, HostStatus, PairingCode } from './host'
 import { VERSION_ID, type RestorePreview, type RestoreResult, type TrashInfo, type VersionSummary } from './versions'
+import { AppearancePatchSchema, AppearanceSchema, MAX_PHOTO_BYTES, PHOTO_ID, PhotoSchema } from './appearance'
+import { VitalsSchema } from './vitals'
 
 /**
  * The one contract between Revive's core (main) and any client.
@@ -137,7 +139,8 @@ export const StateEventSchema = z.discriminatedUnion('type', [
     stoppedProjects: z.array(z.string()),
     ...Seq
   }),
-  z.object({ type: z.literal('trash.emptied'), removedItems: z.number().int(), ...Seq })
+  z.object({ type: z.literal('trash.emptied'), removedItems: z.number().int(), ...Seq }),
+  z.object({ type: z.literal('vitals.updated'), vitals: VitalsSchema, ...Seq })
 ]) satisfies z.ZodType<StateEvent>
 
 export const SessionOutputSchema = z.object({
@@ -353,6 +356,17 @@ export const METHODS = {
   'sessions:info': remote(None, SessionsInfoSchema),
   /** Ends a session whose project is gone. Never done without the user asking. */
   'sessions:endOrphan': remote(z.object({ name: z.string().regex(/^revive-[a-z0-9-]+$/).max(120), confirm: z.literal(true) }), SessionsInfoSchema, M),
+
+  // How Revive looks, per device: the device asking is the one whose look changes.
+  'appearance:get': remote(None, AppearanceSchema),
+  'appearance:set': remote(AppearancePatchSchema, AppearanceSchema, M),
+  /** A photo for the background or the screensaver, already made small on the device (JPEG, base64). */
+  'photos:add': remote(z.object({ jpegBase64: z.string().min(4).max(Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 4), worst: z.string().regex(/^#[0-9a-f]{6}$/i) }), PhotoSchema, M),
+  'photos:remove': remote(z.object({ id: z.string().regex(PHOTO_ID) }), AppearanceSchema, M),
+
+  // The Host's health. Sampled only while someone watches; a watch ends by itself unless renewed.
+  'vitals:watch': remote(z.object({ leaseId: z.string().regex(/^[a-f0-9]{16}$/).optional() }), z.object({ leaseId: z.string(), vitals: VitalsSchema.nullable() })),
+  'vitals:unwatch': remote(z.object({ leaseId: z.string().regex(/^[a-f0-9]{16}$/) }), None),
 
   // Host mode: this computer shared with paired devices. Only on the Host itself.
   'host:status': appOnly(None, HostStatusSchema),

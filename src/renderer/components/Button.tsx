@@ -1,12 +1,13 @@
 import type { ButtonHTMLAttributes } from 'react'
 import { cx } from './cx'
 
-type Variant = 'primary' | 'secondary' | 'quiet'
+type Variant = 'primary' | 'secondary' | 'quiet' | 'danger'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-ink text-white hover:bg-ink/90',
+  primary: 'bg-primary text-on-primary hover:bg-primary/90',
   secondary: 'bg-card text-ink border border-border hover:border-ink/40',
-  quiet: 'text-ink hover:bg-ink/5'
+  quiet: 'text-ink hover:bg-ink/5',
+  danger: 'bg-broken text-on-broken hover:bg-broken/90'
 }
 
 export function Button({

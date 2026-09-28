@@ -1,3 +1,4 @@
+import { DEFAULT_APPEARANCE, type Appearance } from '@shared/appearance'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import type { MethodName, ServerStreamName, ServerStreamPayload } from '@shared/contract'
 import type { DesktopBridge } from '@shared/transport'
@@ -39,7 +40,15 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     for (const l of listeners.get(event) ?? []) l(payload)
   }
 
+  let appearance: Appearance = structuredClone(DEFAULT_APPEARANCE)
   const defaults: Handlers = {
+    'appearance:get': () => appearance,
+    'appearance:set': (patch) => {
+      appearance = { ...appearance, ...(patch as Partial<Appearance>) }
+      return appearance
+    },
+    'vitals:watch': () => ({ leaseId: '0123456789abcdef', vitals: null }),
+    'vitals:unwatch': () => undefined,
     'settings:get': () => settings,
     'settings:set': (patch) => {
       settings = { ...settings, ...(patch as Partial<Settings>) }

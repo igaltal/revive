@@ -90,7 +90,8 @@ export async function startTestHost(core: Core, opts: { port?: number; dir?: str
     assets: () => core.workspace.projectIds(),
     publicHosts: () => opts.publicHosts ?? [],
     port: opts.port,
-    checkOutputs: true
+    checkOutputs: true,
+    photo: (deviceId, photoId) => (core.appearance.ownsPhoto(deviceId, photoId) ? core.appearance.photoFile(deviceId, photoId) : null)
   })
   const { device, token } = devices.add('Test laptop')
   return { server, devices, pairing, log, dir, token, deviceId: device.id }

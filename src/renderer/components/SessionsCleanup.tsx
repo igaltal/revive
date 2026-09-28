@@ -40,7 +40,7 @@ export function SessionsCleanup({ orphans: initial }: { orphans: SessionsInfo['o
             </Button>
             <Button
               data-testid="orphan-end-confirm"
-              className="bg-broken hover:bg-broken/90"
+              variant="danger"
               onClick={() => {
                 const name = ending
                 setEnding(null)

@@ -4,6 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 import revive from './eslint-rules/physical-direction.js'
 import boundary from './eslint-rules/renderer-boundary.js'
+import color from './eslint-rules/no-raw-color.js'
 
 export default tseslint.config(
   { ignores: ['out/**', 'dist/**', 'node_modules/**', 'test-results/**', 'playwright-report/**'] },
@@ -21,6 +22,13 @@ export default tseslint.config(
       'revive/no-physical-direction': 'error',
       'boundary/renderer-boundary': 'error'
     }
+  },
+  {
+    // Colors come from the theme: tokens and scene palettes live in src/renderer/theme, nowhere else.
+    files: ['src/renderer/**/*.{ts,tsx}'],
+    ignores: ['src/renderer/theme/**', 'src/renderer/**/*.test.{ts,tsx}', 'src/renderer/test/**'],
+    plugins: { color },
+    rules: { 'color/no-raw-color': 'error' }
   },
   {
     files: ['src/renderer/**/*.{ts,tsx}'],

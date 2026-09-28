@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<title>Revive Host, טלפון</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Hebrew',system-ui,sans-serif;background:#0b1120}
+a{color:#9cc7ff;text-decoration:none}a:hover{color:#c7deff}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div dir="rtl" style="width: 390px; height: 844px; position: relative; overflow: hidden; color: #f2f5fa; font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif; background: #0b1120">
+  <svg width="390" height="844" viewBox="380 60 680 964" preserveAspectRatio="xMidYMid slice" style="position: absolute; top: 0; left: 0">
+    <defs>
+      <linearGradient id="psky" x1="0" y1="0" x2="0" y2="620" gradientUnits="userSpaceOnUse">
+        <stop offset="0" style="stop-color: {{s.sky0}}"></stop>
+        <stop offset="0.48" style="stop-color: {{s.sky1}}"></stop>
+        <stop offset="0.76" style="stop-color: {{s.sky2}}"></stop>
+        <stop offset="0.94" style="stop-color: {{s.sky3}}"></stop>
+      </linearGradient>
+      <radialGradient id="pglow" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" style="stop-color: {{s.glow}}; stop-opacity: {{s.glowOp}}"></stop>
+        <stop offset="1" style="stop-color: {{s.glow}}; stop-opacity: 0"></stop>
+      </radialGradient>
+      <linearGradient id="plake" x1="0" y1="600" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+        <stop offset="0" style="stop-color: {{s.lakeTop}}"></stop>
+        <stop offset="0.3" style="stop-color: {{s.lakeMid}}"></stop>
+        <stop offset="1" style="stop-color: {{s.lakeDeep}}"></stop>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="1440" height="620" fill="url(#psky)"></rect>
+    <path d="{{s.stars}}" style="fill: #ffffff; opacity: 0.75"></path>
+    <circle cx="930" cy="170" r="{{s.moonR}}" style="fill: #eef1f8"></circle>
+    <ellipse cx="820" cy="560" rx="420" ry="200" fill="url(#pglow)"></ellipse>
+    <path d="M0 520 L90 492 L170 505 L260 458 L330 474 L420 420 L500 440 L590 360 L660 300 L720 228 L784 282 L836 272 L900 332 L980 380 L1060 408 L1150 388 L1240 428 L1330 418 L1440 452 L1440 610 L0 610 Z" style="fill: {{s.range1}}"></path>
+    <path d="M660 300 L720 228 L784 282 L764 290 L746 272 L730 298 L710 282 L690 308 Z" style="fill: {{s.snow}}; opacity: 0.9"></path>
+    <path d="M0 560 L140 522 L250 546 L380 502 L470 530 L560 506 L650 540 L760 516 L880 548 L1000 506 L1120 536 L1250 500 L1360 528 L1440 512 L1440 610 L0 610 Z" style="fill: {{s.range2}}"></path>
+    <rect x="0" y="600" width="1440" height="424" fill="url(#plake)"></rect>
+    <path d="{{s.shore}}" style="fill: {{s.trees}}"></path>
+    <rect x="0" y="592" width="1440" height="9" style="fill: {{s.trees}}"></rect>
+  </svg>
+  <div style="position: absolute; top: 0; left: 0; width: 390px; height: 844px; background: linear-gradient(180deg, rgba(6, 10, 20, 0) 45%, rgba(6, 10, 20, 0.7) 100%)"></div>
+
+  <div style="position: absolute; top: 0; left: 0; width: 390px; height: 844px; box-sizing: border-box; padding: 22px 18px 16px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 999px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); font-size: 12px">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #5fd38d; box-shadow: 0 0 8px #5fd38d"></span><bdi>Mac mini</bdi> מחובר
+      </div>
+      <button aria-label="התראות" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); color: #f2f5fa; display: flex; align-items: center; justify-content: center; position: relative">
+        <svg width="18" height="18" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+        <span style="position: absolute; top: 9px; left: 11px; width: 7px; height: 7px; border-radius: 50%; background: #ff7a45"></span>
+      </button>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px">
+      <div style="font-size: 64px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.25)"><bdi>19:08</bdi></div>
+      <div style="font-size: 16px; color: rgba(242, 245, 250, 0.86)">יום ראשון, 27 בספטמבר</div>
+    </div>
+
+    <div style="flex-grow: 1"></div>
+
+    <section style="padding: 14px; border-radius: 20px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 170, 110, 0.35); backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(160deg, #ff9a5c, #e0602a); display: flex; align-items: center; justify-content: center; color: #ffffff">
+          <svg width="20" height="20" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <bdi style="font-size: 15px; font-weight: 600">camp-site</bdi>
+          <span style="font-size: 12px; color: #ffa552"><bdi>Codex</bdi> מחכה לאישור שלך</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button style="flex-grow: 1; height: 44px; border-radius: 12px; border: none; background: linear-gradient(180deg, #5aa2ff, #2f7cf0); color: #ffffff; font-size: 15px; font-weight: 600">לאשר</button>
+        <button style="flex-grow: 1; height: 44px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: #f2f5fa; font-size: 14px">מה ישתנה</button>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{projects}}" as="p" hint-placeholder-count="4">
+        <a href="#" style="box-sizing: border-box; padding: 12px 4px 10px; border-radius: 16px; background: rgba(14, 20, 34, 0.46); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(20px); color: #f2f5fa; display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div style="width: 44px; height: 44px; border-radius: 13px; background: {{p.color}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); display: flex; align-items: center; justify-content: center; color: {{p.glyph}}">
+            <svg width="22" height="22" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round"><path d="{{p.icon}}"></path></svg>
+          </div>
+          <bdi style="font-size: 11px; font-weight: 600">{{p.name}}</bdi>
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: {{p.dot}}"></span>
+        </a>
+      </sc-for>
+    </section>
+
+    <section style="padding: 14px 16px; border-radius: 20px; background: rgba(14, 20, 34, 0.5); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+      <sc-for list="{{stats}}" as="g" hint-placeholder-count="4">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 11px; color: rgba(242, 245, 250, 0.7)">{{g.label}}</span>
+          <span style="font-size: 18px; font-weight: 500"><bdi>{{g.value}}</bdi></span>
+          <div style="height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12)"><div style="height: 4px; border-radius: 2px; width: {{g.pct}}; background: {{g.color}}"></div></div>
+        </div>
+      </sc-for>
+    </section>
+
+    <nav aria-label="ניווט ראשי" style="height: 64px; border-radius: 22px; background: rgba(14, 20, 34, 0.55); border: 1px solid rgba(255, 255, 255, 0.13); backdrop-filter: blur(22px); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{tabs}}" as="r" hint-placeholder-count="4">
+        <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; color: {{r.fg}}">
+          <svg width="22" height="22" viewBox="0 0 24 24" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="{{r.icon}}"></path></svg>{{r.label}}</a>
+      </sc-for>
+    </nav>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scene":{"editor":"enum","options":["dusk","night"],"default":"dusk"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  buildScene(kind) {
+    function rnd(i) { var x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+    function f(n) { return n.toFixed(1); }
+    function pine(x, base, h) {
+      var w = h * 0.46, d = '';
+      var bottoms = [0, 0.3, 0.55], apex = [0.55, 0.8, 1], half = [0.5, 0.38, 0.26];
+      for (var k = 0; k < 3; k++) {
+        var by = base - h * bottoms[k], ay = base - h * apex[k], hw = w * half[k];
+        d += 'M' + f(x - hw) + ' ' + f(by) + ' L' + f(x) + ' ' + f(ay) + ' L' + f(x + hw) + ' ' + f(by) + ' Z ';
+      }
+      d += 'M' + f(x - h * 0.03) + ' ' + f(base) + ' h' + f(h * 0.06) + ' v' + f(h * 0.08) + ' h' + f(-h * 0.06) + ' Z ';
+      return d;
+    }
+    var pinesL = '', pinesR = '', shore = '', stars = '';
+    for (var i = 0; i < 26; i++) {
+      var x = rnd(i) * 370, t = x / 390;
+      pinesL += pine(x, 438 + t * 160 + 22, (175 - t * 115) * (0.7 + rnd(i + 50) * 0.5));
+    }
+    for (var j = 0; j < 26; j++) {
+      var xr = 1440 - rnd(j + 100) * 380, tr = (1440 - xr) / 400;
+      pinesR += pine(xr, 418 + tr * 175 + 22, (180 - tr * 115) * (0.7 + rnd(j + 150) * 0.5));
+    }
+    for (var k2 = 0; k2 < 112; k2++) {
+      shore += pine(k2 * 13 + rnd(k2 + 200) * 8, 598, 10 + rnd(k2 + 300) * 22);
+    }
+    if (kind === 'night') {
+      for (var s = 0; s < 140; s++) {
+        var sx = rnd(s + 500) * 1440, sy = rnd(s + 900) * 380, sz = 0.8 + rnd(s + 1300) * 1.6;
+        stars += 'M' + f(sx) + ' ' + f(sy) + ' h' + f(sz) + ' v' + f(sz) + ' h' + f(-sz) + ' Z ';
+      }
+    }
+    var pal = kind === 'night' ? {
+      sky0: '#050a18', sky1: '#0d1833', sky2: '#1f2f58', sky3: '#34477a', glow: '#9fb4ea', glowOp: 0.35,
+      range1: '#26345a', snow: '#c9d3ea', range2: '#161f3a', hills: '#050912', trees: '#08101f',
+      lakeTop: '#27386a', lakeMid: '#101a34', lakeDeep: '#060b18', moonR: 22
+    } : {
+      sky0: '#1a2644', sky1: '#394a74', sky2: '#9b7b8e', sky3: '#f3b789', glow: '#ffd3a3', glowOp: 0.75,
+      range1: '#56648a', snow: '#f1e1dc', range2: '#2d3954', hills: '#0c1320', trees: '#101929',
+      lakeTop: '#8e7686', lakeMid: '#2a3753', lakeDeep: '#0e1627', moonR: 0
+    };
+    pal.pinesL = pinesL; pal.pinesR = pinesR; pal.shore = shore; pal.stars = stars || 'M0 0 Z';
+    return pal;
+  }
+  renderVals() {
+    var kind = this.props.scene === 'night' ? 'night' : 'dusk';
+    if (!this._scene || this._sceneKind !== kind) { this._scene = this.buildScene(kind); this._sceneKind = kind; }
+    var dots = { working: '#5fd38d', waiting: '#ffa552', review: '#7fb8ff', idle: 'rgba(242, 245, 250, 0.5)' };
+    var projects = [
+      { name: 'trail-map', k: 'working', color: 'linear-gradient(160deg, #3cc4b0, #1d8a7c)', glyph: '#ffffff', icon: 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z' },
+      { name: 'revive', k: 'review', color: 'linear-gradient(160deg, #fbf6ec, #e3d9c6)', glyph: '#b8401c', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5' },
+      { name: 'relay', k: 'working', color: 'linear-gradient(160deg, #62a8ff, #2f6fe0)', glyph: '#ffffff', icon: 'M12 13v8M8.5 9.5a5 5 0 0 1 7 0M5.6 6.6a9 9 0 0 1 12.8 0M12 13.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4z' },
+      { name: 'job-board', k: 'idle', color: 'linear-gradient(160deg, #ff7fa0, #d9416a)', glyph: '#ffffff', icon: 'M12 20s-7-4.4-9-9a4.8 4.8 0 0 1 9-3 4.8 4.8 0 0 1 9 3c-2 4.6-9 9-9 9z' }
+    ].map(function (p) { return Object.assign({}, p, { dot: dots[p.k] }); });
+    var stats = [
+      { label: 'מעבד', value: '18%', pct: '18%', color: '#5aa2ff' },
+      { label: 'זיכרון', value: '59%', pct: '59%', color: '#5fd38d' },
+      { label: 'דיסק', value: '41%', pct: '41%', color: '#b18cff' },
+      { label: 'פעיל', value: '17 ימים', pct: '100%', color: '#ffa552' }
+    ];
+    var tabs = [
+      { label: 'הבית', icon: 'M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', on: true },
+      { label: 'פרויקטים', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
+      { label: 'סוכנים', icon: 'M4 17l6-6-6-6M12 19h8' },
+      { label: 'שרת', icon: 'M3 4h18v12H3zM8 20h8M12 16v4' }
+    ].map(function (r) { return { label: r.label, icon: r.icon, fg: r.on ? '#7fb8ff' : 'rgba(242, 245, 250, 0.78)' }; });
+    return { s: this._scene, projects: projects, stats: stats, tabs: tabs };
+  }
+}
+</script>
+</body>
+</html>

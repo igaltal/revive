@@ -14,6 +14,7 @@ import { Button } from '@/components/Button'
 import { Switch } from '@/components/host'
 import { SessionsCleanup } from '@/components/SessionsCleanup'
 import { useSessionsInfo } from '@/screens/TerminalScreen'
+import { BrushIcon } from '@/components/icons'
 
 function Section({ title, hint, children }: { title: ReactNode; hint: ReactNode; children: ReactNode }) {
   return (
@@ -27,7 +28,7 @@ function Section({ title, hint, children }: { title: ReactNode; hint: ReactNode;
   )
 }
 
-export function SettingsScreen(): ReactNode {
+export function SettingsScreen({ onCustomize }: { onCustomize?: () => void }): ReactNode {
   const { t, tx } = useT()
   const { settings, update } = useSettings()
   const ui = settings.uiLanguage ?? 'en'
@@ -66,6 +67,17 @@ export function SettingsScreen(): ReactNode {
           ]}
         />
       </Section>
+
+      {onCustomize ? (
+        <Section title={tx('settings.look.title')} hint={tx('settings.look.hint')}>
+          <div>
+            <Button variant="secondary" data-testid="open-customize" onClick={onCustomize}>
+              <BrushIcon />
+              {tx('settings.look.button')}
+            </Button>
+          </div>
+        </Section>
+      ) : null}
 
       <Section title={tx('settings.claude.title')} hint={tx('settings.claude.hint')}>
         <OptionCards

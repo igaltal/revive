@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
-import type { HostStatus, PairingCode } from '@shared/host'
+import { LOCAL_DEVICE, type HostStatus, type PairingCode } from '@shared/host'
 import type { Exec } from '../../exec'
 import type { Core } from '../../contract/handlers'
 import { noAppHandlers, type CoreHandlers } from '../../contract/dispatch'
@@ -144,8 +144,14 @@ export class HostService {
   revokeDevice(deviceId: string): HostStatus {
     this.devices.revoke(deviceId)
     this.server?.disconnectDevice(deviceId)
+    this.forgetRevoked()
     this.emit()
     return this.status()
+  }
+
+  private forgetRevoked(): void {
+    const active = new Set(this.devices.active().map((d) => d.id))
+    for (const id of this.opts.core.appearance.devices()) if (id !== LOCAL_DEVICE.id && !active.has(id)) this.opts.core.appearance.forget(id)
   }
 
   activity(limit: number) {
@@ -180,10 +186,15 @@ export class HostService {
         pairing: this.pairing,
         hostName: this.opts.platform.hostName,
         assets: () => core.workspace.projectIds(),
+        photo: (deviceId, photoId) => (core.appearance.ownsPhoto(deviceId, photoId) ? existing(core.appearance.photoFile(deviceId, photoId)) : null),
         publicHosts: () => [...(this.tailnetName ? [this.tailnetName] : []), ...(this.opts.extraPublicHosts ?? [])],
         port,
         checkOutputs: this.opts.checkOutputs,
-        onDevicesChanged: () => this.emit(),
+        onDevicesChanged: () => {
+          // A browser that signed itself out is revoked too: its look and photos go with it.
+          this.forgetRevoked()
+          this.emit()
+        },
         webRoot: this.opts.webRoot
       })
     // The same port as last time, so `tailscale serve` and paired devices keep working after a restart.
@@ -248,4 +259,8 @@ export class HostService {
   private save(): void {
     writeFileSync(join(this.opts.userData, 'host.json'), JSON.stringify(this.saved, null, 2))
   }
+}
+
+function existing(file: string | null): string | null {
+  return file && existsSync(file) ? file : null
 }

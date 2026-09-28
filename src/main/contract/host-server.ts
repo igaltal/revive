@@ -9,6 +9,7 @@ import { parseSessionId, sessionId as toSessionId, type SessionId } from '@share
 import { CLOSE_REVOKED, encodeOutputFrame, WS_PROTOCOL, WS_TOKEN_PREFIX, type ClientMessage, type ServerMessage } from '@shared/ws-protocol'
 import type { SessionHub } from '../services/sessions/session-hub'
 import { resolveAssetRequest } from '../services/shots/shots'
+import { parsePhotoPath } from '@shared/appearance'
 import type { DeviceRegistry } from '../services/host/devices'
 import type { Pairing } from '../services/host/pairing'
 import { ContractError, dispatch, handleClientStream, hubSink, type CallContext, type Handlers } from './dispatch'
@@ -149,6 +150,8 @@ export async function startHostServer(opts: {
   onDevicesChanged?: () => void
   /** The built web app (out/web), served to browsers and phones. */
   webRoot?: string
+  /** A device's own photo (background, screensaver), or null when it isn't that device's. */
+  photo?: (deviceId: string, photoId: string) => string | null
 }): Promise<HostServer> {
   const conns = new Set<Conn>()
   const sink = hubSink(opts.hub)
@@ -203,7 +206,7 @@ export async function startHostServer(opts: {
       }
 
       // The web app itself: public files (no data in them), path-locked.
-      if (opts.webRoot && req.method === 'GET' && !url.pathname.startsWith('/shots/') && url.pathname !== '/whoami') {
+      if (opts.webRoot && req.method === 'GET' && !url.pathname.startsWith('/shots/') && !url.pathname.startsWith('/photos/') && url.pathname !== '/whoami') {
         const served = await serveWeb(opts.webRoot, url.pathname, res)
         if (served) return
       }
@@ -221,6 +224,13 @@ export async function startHostServer(opts: {
       // A dead cookie (revoked) is removed from the browser along the way.
       if (!device) return json(401, { error: 'unauthorized' }, cookieToken(req) ? { 'set-cookie': clearCookie } : {})
       if (url.pathname === '/whoami') return json(200, { deviceId: device.id, deviceName: device.name, hostName: opts.hostName })
+      // Photos: only the device that added one can fetch it.
+      const photoId = req.method === 'GET' ? parsePhotoPath(url.pathname) : null
+      if (photoId) {
+        const file = opts.photo?.(device.id, photoId) ?? null
+        if (!file) return json(404, { error: 'not_found' })
+        return res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=86400, immutable', 'cross-origin-resource-policy': 'same-origin' }).end(await readFile(file))
+      }
       const ctx = req.method === 'GET' ? await opts.assets() : null
       const file = ctx ? resolveAssetRequest(ctx.folder, url.pathname, ctx.projectIds) : null
       if (!file) return json(404, { error: 'not_found' })

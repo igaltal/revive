@@ -61,6 +61,7 @@
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.15",
     "simple-git": "^4.0.1",
+    "systeminformation": "^5.33.13",
     "ws": "^8.22.0",
     "zod": "^4.6.5"
   }

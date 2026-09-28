@@ -20,6 +20,12 @@ export class RuntimeBus {
 
   emit(input: StateEventInput): StateEvent {
     const event = { ...input, seq: ++this.seq, at: new Date().toISOString() } as StateEvent
+    // Vitals arrive every few seconds: only the latest is worth replaying, and they must not
+    // push status changes out of the replay window.
+    if (event.type === 'vitals.updated') {
+      const prev = this.history.findIndex((e) => e.type === 'vitals.updated')
+      if (prev >= 0) this.history.splice(prev, 1)
+    }
     this.history.push(event)
     if (this.history.length > this.keep) this.history.splice(0, this.history.length - this.keep)
     this.broadcast(event)

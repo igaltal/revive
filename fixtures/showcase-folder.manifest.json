@@ -1,0 +1,192 @@
+{
+  "version": 2,
+  "scanned_at": "2026-09-26T10:00:00.000Z",
+  "projects": [
+    {
+      "id": "bakery-site",
+      "name": "Sunrise Bakery",
+      "path": "bakery-site",
+      "description": {
+        "en": "A one-page site for a neighborhood bakery.",
+        "he": "אתר של עמוד אחד למאפייה שכונתית."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "trail-map",
+      "name": "Trail map",
+      "path": "trail-map",
+      "description": {
+        "en": "Hiking routes near home, with a map.",
+        "he": "מסלולי הליכה ליד הבית, עם מפה."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "book-club",
+      "name": "Book club",
+      "path": "book-club",
+      "description": {
+        "en": "This month's book and who is hosting.",
+        "he": "הספר של החודש ומי מארח."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "recipe-box",
+      "name": "Recipe box",
+      "path": "recipe-box",
+      "description": {
+        "en": "Family recipes, searchable.",
+        "he": "מתכונים של המשפחה, עם חיפוש."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "photo-wall",
+      "name": "Photo wall",
+      "path": "photo-wall",
+      "description": {
+        "en": "A gallery of trip photos.",
+        "he": "גלריה של תמונות מטיולים."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "budget-buddy",
+      "name": "Budget buddy",
+      "path": "budget-buddy",
+      "description": {
+        "en": "Where the money went this month.",
+        "he": "לאן הלך הכסף החודש."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "garden-log",
+      "name": "Garden log",
+      "path": "garden-log",
+      "description": {
+        "en": "What was planted and when to water.",
+        "he": "מה נשתל ומתי להשקות."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    },
+    {
+      "id": "habit-counter",
+      "name": "Habit counter",
+      "path": "habit-counter",
+      "description": {
+        "en": "Days in a row you kept a habit.",
+        "he": "כמה ימים ברצף שמרתם על הרגל."
+      },
+      "stack": [
+        "html"
+      ],
+      "status": "unknown",
+      "run": {
+        "install": null,
+        "dev": null,
+        "port": null,
+        "url": null,
+        "verified_at": null
+      },
+      "keys": [],
+      "notes": [],
+      "user_locked": []
+    }
+  ],
+  "loose_files": [],
+  "suggested_reorg": []
+}

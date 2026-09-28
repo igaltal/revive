@@ -27,3 +27,16 @@ export function withCtrl(data: string): string {
 
 export const FONT_SIZES = { min: 9, max: 24, default: 13 } as const
 export const clampFont = (n: number) => Math.min(FONT_SIZES.max, Math.max(FONT_SIZES.min, Math.round(n)))
+
+/**
+ * What a terminal sends by itself in answer to a program's question, never
+ * typed by a person: device attributes (ESC [ ? 1 ; 2 c), status and cursor
+ * reports (ESC [ 12 ; 40 R), color replies (ESC ] 11 ; rgb:...).
+ */
+export function isTerminalReport(data: string): boolean {
+  return REPORT.test(data)
+}
+const ESC = String.fromCharCode(27)
+const BEL = String.fromCharCode(7)
+// Device attributes, status and cursor reports, focus in and out, color replies; one or several in a row.
+const REPORT = new RegExp(`^(?:${ESC}\\[[?>]?[\\d;]*[cRn]|${ESC}\\[[IO]|${ESC}\\][\\d;]*;rgb:[0-9a-f/]+(?:${BEL}|${ESC}\\\\))+$`, 'i')
