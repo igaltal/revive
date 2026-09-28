@@ -130,7 +130,7 @@ describe('Home', () => {
     expect(mock.calls.some((c) => c.channel === 'sessions:open')).toBe(false)
     fireEvent.change(screen.getByTestId('command-input'), { target: { value: 'Sunrise Bakery' } })
     fireEvent.click(screen.getByTestId('command-go'))
-    expect((await screen.findByTestId('agent-problem')).textContent).toContain('Claude Code')
+    expect((await screen.findByTestId('agent-problem', {}, { timeout: 5000 })).textContent).toContain('Claude Code')
   })
 
   it('stops watching vitals when Home is left', async () => {

@@ -1,4 +1,9 @@
 {
+  "update": {
+    "ready": "עדכון מוכן: Revive {version} יותקן כשתצאו מהאפליקציה.",
+    "restart": "להפעיל מחדש עכשיו",
+    "later": "אחר כך"
+  },
   "home": {
     "status": {
       "agentWorking": "{agent} עובד",

@@ -8,3 +8,5 @@ playwright-report/
 *.log
 *.pdf
 screenshots/
+.cache/
+resources/bin/

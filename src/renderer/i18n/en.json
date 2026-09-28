@@ -1,4 +1,9 @@
 {
+  "update": {
+    "ready": "Update ready: Revive {version} installs when you quit.",
+    "restart": "Restart now",
+    "later": "Later"
+  },
   "home": {
     "status": {
       "agentWorking": "{agent} is working",

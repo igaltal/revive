@@ -15,6 +15,13 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node, ...globals.browser } }
   },
   {
+    // Build scripts (electron-builder hooks and helpers) run in Node.
+    files: ['**/*.{cjs,mjs}'],
+    languageOptions: { globals: globals.node, sourceType: 'commonjs' },
+    rules: { '@typescript-eslint/no-require-imports': 'off' }
+  },
+  { files: ['**/*.mjs'], languageOptions: { sourceType: 'module' } },
+  {
     files: ['src/renderer/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks, revive, boundary },
     rules: {

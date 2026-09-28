@@ -243,11 +243,15 @@ export class TmuxBackend implements SessionBackend {
   }
 }
 
-/** Where tmux is, if anywhere. REVIVE_TMUX overrides (a path, or "none" to act as if it's missing). */
-export function findTmux(env: NodeJS.ProcessEnv = process.env): string | null {
+/**
+ * Where tmux is, if anywhere: the one bundled with Revive first, then a system
+ * one. REVIVE_TMUX overrides (a path, or "none" to act as if it's missing).
+ */
+export function findTmux(env: NodeJS.ProcessEnv = process.env, bundled: string | null = null): string | null {
   const override = env['REVIVE_TMUX']
   if (override === 'none') return null
   if (override) return existsSync(override) ? override : null
+  if (bundled && existsSync(bundled)) return bundled
   const dirs = [...(env['PATH'] ?? '').split(':'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin']
   for (const d of dirs) if (d && existsSync(join(d, 'tmux'))) return join(d, 'tmux')
   return null

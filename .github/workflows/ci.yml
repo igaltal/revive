@@ -1,0 +1,35 @@
+# Every push and pull request: the same checks a release runs, without building the app.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Bundled tmux (cached by its build script)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/tmux-build/downloads
+            resources/bin
+          key: tmux-${{ runner.os }}-${{ hashFiles('scripts/build-tmux.sh') }}
+      - run: npm run build:tmux
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+        env:
+          REVIVE_TMUX: ${{ github.workspace }}/resources/bin/tmux
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+        env:
+          REVIVE_TMUX: ${{ github.workspace }}/resources/bin/tmux

@@ -4,6 +4,11 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { LOCAL_DEVICE } from '@shared/host'
 import { systemSampler } from './services/vitals/system-sampler'
+import { bundledTmux, resourcePath, tmuxSocketName } from './paths'
+import electronUpdater from 'electron-updater'
+import { channelFor, UpdateService } from './services/updates'
+import type { UpdateStatus } from '@shared/update'
+import { installFile, offerMoveToApplications } from './install-location'
 import type { GuardState } from '@shared/guard'
 import { exec } from './exec'
 import { loadShellPath } from './shell-env'
@@ -107,6 +112,26 @@ let tray: Tray | null = null
 
 void app.whenReady().then(async () => {
   lockDownNetwork()
+  // Opened from the disk image or Downloads: offer to move into /Applications first (Electron relaunches from there).
+  const moving = await offerMoveToApplications({
+    packaged: app.isPackaged,
+    inApplications: () => app.isInApplicationsFolder(),
+    move: () => app.moveToApplicationsFolder(),
+    ask: () =>
+      dialog.showMessageBox({
+        type: 'question',
+        message: 'Move Revive to your Applications folder?',
+        detail: 'Revive works best from Applications: it keeps itself up to date there, and keeps working after you eject the disk image.',
+        buttons: ['Move to Applications', 'Not now'],
+        defaultId: 0,
+        cancelId: 1,
+        checkboxLabel: "Don't ask again"
+      }),
+    file: installFile(app.getPath('userData')),
+    // Tests of the packaged app run it from a temporary folder on purpose.
+    skip: process.env['REVIVE_NO_MOVE_PROMPT'] === '1'
+  })
+  if (moving) return
   // Loaded in parallel with the window so startup stays fast.
   const shellReady = loadShellPath(exec)
   const userData = app.getPath('userData')
@@ -115,14 +140,14 @@ void app.whenReady().then(async () => {
   let core: Core | null = null
   const guard = new TurnLimitGuard(join(userData, 'claude-guard.json'), exec, (s) => core?.streams.emit('guard:changed', s))
   // Sessions in Revive's own tmux server outlive it; without tmux they're direct children and stop with it.
-  const tmux = findTmux()
   const dev = !app.isPackaged
+  const tmux = findTmux(process.env, bundledTmux(app.isPackaged))
   const backend = tmux
     ? new TmuxBackend({
         tmux,
         // Tests use their own socket so they never touch the real one.
-        socket: (dev && process.env['REVIVE_TMUX_SOCKET']) || 'revive',
-        config: join(import.meta.dirname, '../../resources/tmux.conf'),
+        socket: (dev && process.env['REVIVE_TMUX_SOCKET']) || tmuxSocketName(process.env['REVIVE_USER_DATA']),
+        config: resourcePath('tmux.conf', app.isPackaged),
         exitDir: join(userData, 'tmux-exit')
       })
     : ptyBackend
@@ -240,7 +265,18 @@ void app.whenReady().then(async () => {
       return st.sharing ? st.devices.filter((d) => d.online).length : null
     }
   })
-  router = new AppRouter(out, c, logged, withActionLog(createAppHandlers(host, client), log), client)
+  // Updates: only in the packaged app, and only when it was built with a release feed (app-update.yml).
+  const updates = app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
+    ? new UpdateService(
+        electronUpdater.autoUpdater,
+        // The first check waits a minute; the installed-app test shortens that (timing only).
+        { version: app.getVersion(), channel: process.env['REVIVE_UPDATE_CHANNEL'], firstCheckMs: Number(process.env['REVIVE_UPDATE_FIRST_CHECK_MS']) || undefined },
+        (s) => out.emit('update:status', s)
+      )
+    : null
+  const noUpdates: UpdateStatus = { state: 'off', current: app.getVersion(), version: null, channel: channelFor(app.getVersion()), percent: null }
+  updates?.start()
+  router = new AppRouter(out, c, logged, withActionLog(createAppHandlers(host, client, updates ?? { current: () => noUpdates, install: () => {} }), log), client)
   const r = router
 
   handleAssetProtocol(
@@ -278,7 +314,7 @@ void app.whenReady().then(async () => {
       return
     }
     if (!tray) {
-      const icon = nativeImage.createFromPath(join(import.meta.dirname, '../../resources/trayTemplate.png'))
+      const icon = nativeImage.createFromPath(resourcePath('trayTemplate.png', app.isPackaged))
       icon.setTemplateImage(true)
       tray = new Tray(icon)
       tray.setToolTip('Revive is sharing this computer')

@@ -1,6 +1,7 @@
 import { METHODS, type ClientStatus, type MethodName } from '@shared/contract'
 import { METHOD_NAMES } from '@shared/contract-names'
 import type { Settings, SettingsPatch } from '@shared/settings'
+import type { UpdateStatus } from '@shared/update'
 import { ContractError, hubSink, type AppHandlers, type CallContext, type CoreHandlers, type Handlers, type SessionSink } from '../contract/dispatch'
 import type { Core } from '../contract/handlers'
 import type { ServerStreams } from '../contract/streams'
@@ -88,7 +89,7 @@ export class AppRouter {
 }
 
 /** Host mode and the client connection, answered on this computer. One mode at a time. */
-export function createAppHandlers(host: HostService, client: ClientService): AppHandlers {
+export function createAppHandlers(host: HostService, client: ClientService, updates: { current(): UpdateStatus; install(): void }): AppHandlers {
   const notWhileClient = () => {
     if (client.mode === 'client') throw new ContractError('not_available', 'This computer is connected to another one; disconnect first to share it')
   }
@@ -110,6 +111,8 @@ export function createAppHandlers(host: HostService, client: ClientService): App
       if (host.status().sharing) throw new ContractError('not_available', 'This computer is shared; stop sharing first to connect to another one')
       return client.connect(input)
     },
-    'client:disconnect': () => client.disconnect()
+    'client:disconnect': () => client.disconnect(),
+    'update:status': () => updates.current(),
+    'update:install': () => updates.install()
   }
 }

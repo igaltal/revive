@@ -11,6 +11,15 @@ import type { ActivityEntry, HostStatus, PairingCode } from './host'
 import { VERSION_ID, type RestorePreview, type RestoreResult, type TrashInfo, type VersionSummary } from './versions'
 import { AppearancePatchSchema, AppearanceSchema, MAX_PHOTO_BYTES, PHOTO_ID, PhotoSchema } from './appearance'
 import { VitalsSchema } from './vitals'
+import type { UpdateStatus } from './update'
+
+const UpdateStatusSchema = z.object({
+  state: z.enum(['off', 'idle', 'checking', 'downloading', 'ready', 'error']),
+  current: z.string(),
+  version: z.string().nullable(),
+  channel: z.enum(['latest', 'beta']),
+  percent: z.number().nullable()
+}) satisfies z.ZodType<UpdateStatus>
 
 /**
  * The one contract between Revive's core (main) and any client.
@@ -384,7 +393,12 @@ export const METHODS = {
   // Client mode: this app as a window onto another computer.
   'client:status': appOnly(None, ClientStatusSchema),
   'client:connect': appOnly(z.object({ address: z.string().min(1).max(300), code: z.string().regex(/^\d{6}$/), deviceName: z.string().min(1).max(60) }), ClientStatusSchema, M),
-  'client:disconnect': appOnly(None, ClientStatusSchema, M)
+  'client:disconnect': appOnly(None, ClientStatusSchema, M),
+
+  // This app's own updates: downloaded in the background, installed on the next quit.
+  'update:status': appOnly(None, UpdateStatusSchema),
+  /** Restarts into the downloaded update, only when the person asks. */
+  'update:install': appOnly(None, None, M)
 } satisfies Record<MethodName, MethodDef<z.ZodType, z.ZodType>>
 
 /** Main → client streams. */
@@ -401,7 +415,9 @@ export const SERVER_STREAM_SCHEMAS = {
   /** Host mode changes (sharing, pairing requests, devices). Only on the Host itself. */
   'host:status': HostStatusSchema,
   /** This app's connection to another computer. */
-  'client:status': ClientStatusSchema
+  'client:status': ClientStatusSchema,
+  /** This app's own update: downloading, ready to install on quit. Never sent to paired devices. */
+  'update:status': UpdateStatusSchema
 } satisfies Record<ServerStreamName, z.ZodType>
 
 /** Client → main streams (fire and forget). */

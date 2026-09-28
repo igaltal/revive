@@ -62,9 +62,9 @@ describe('the contract registry', () => {
     expect(localOnly).toEqual(
       ['folder:pick', 'prereq:installClaude', 'prereq:signIn', 'preview:cover', 'preview:hide', 'preview:openInBrowser', 'preview:reload', 'preview:show', 'preview:uncover', 'shell:openHelp'].sort()
     )
-    // Host and client controls never go over the network, and nothing app-level is remote.
+    // Host and client controls, and this app's own updates, never go over the network.
     const app = METHOD_NAMES.filter((m) => (METHODS[m] as { app: boolean }).app)
-    expect(app.every((m) => m.startsWith('host:') || m.startsWith('client:'))).toBe(true)
+    expect(app.every((m) => m.startsWith('host:') || m.startsWith('client:') || m.startsWith('update:'))).toBe(true)
     expect(app.some((m) => METHODS[m].remote)).toBe(false)
   })
 })

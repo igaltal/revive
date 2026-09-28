@@ -1,0 +1,116 @@
+# A version tag (v0.11.0, v0.12.0-beta.1) builds, checks, signs, notarizes and
+# publishes Revive. Signing and notarizing switch on when their secrets exist;
+# without them the build is ad hoc signed and nothing is published.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD      Developer ID Application certificate (.p12, base64)
+#   ASC_API_KEY_P8, ASC_API_KEY_ID, ASC_API_ISSUER   App Store Connect API key for notarytool
+#   For Cloudflare R2: R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and the
+#   variable REVIVE_UPDATE_URL (the bucket's public URL). Otherwise GitHub Releases of this repository.
+name: Release
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+      APPLE_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.ASC_API_ISSUER }}
+      REVIVE_UPDATE_URL: ${{ vars.REVIVE_UPDATE_URL }}
+      REVIVE_GITHUB_REPO: ${{ vars.REVIVE_UPDATE_URL == '' && github.repository || '' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REVIVE_TMUX: ${{ github.workspace }}/resources/bin/tmux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: The tag matches package.json, and CHANGELOG.md has this version
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          [[ "v$v" == "$GITHUB_REF_NAME" ]] || { echo "tag $GITHUB_REF_NAME but package.json says $v"; exit 1; }
+          node scripts/changelog-section.mjs "$v" > /dev/null
+
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/tmux-build/downloads
+            resources/bin
+          key: tmux-${{ runner.os }}-${{ hashFiles('scripts/build-tmux.sh') }}
+      - run: npm run build:tmux
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+
+      - name: App Store Connect key for notarization
+        if: env.APPLE_API_KEY_ID != ''
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "${{ secrets.ASC_API_KEY_P8 }}" > ~/private_keys/AuthKey.p8
+          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize (fails if notarization fails)
+        run: |
+          if [[ -z "$CSC_LINK" ]]; then export CSC_IDENTITY_AUTO_DISCOVERY=false; echo "::warning::No Developer ID certificate: ad hoc build, not published"; fi
+          npm run build
+          npx electron-builder --config electron-builder.config.cjs --mac --publish never
+
+      - name: Verify signature, notarization and Gatekeeper
+        run: |
+          if [[ -n "$CSC_LINK" ]]; then scripts/verify-signature.sh release; else scripts/verify-signature.sh release --adhoc; fi
+
+      - name: Install the DMG and run it (fresh data folder, bundled tmux)
+        run: npm run test:packaged
+        env:
+          REVIVE_RELEASE_DIR: release
+
+      # The files just verified, as they are: a draft first, published once everything is up.
+      - name: The Intel half too (under Rosetta)
+        run: |
+          softwareupdate --install-rosetta --agree-to-license || true
+          npx playwright test --config e2e/packaged.config.ts -g "install the DMG"
+        env:
+          REVIVE_RELEASE_DIR: release
+          REVIVE_TEST_ARCH: x86_64
+
+      - name: Publish to GitHub Releases
+        if: env.CSC_LINK != '' && env.REVIVE_UPDATE_URL == ''
+        run: |
+          pre=""; [[ "$GITHUB_REF_NAME" == *-* ]] && pre="--prerelease"
+          notes="$(node scripts/changelog-section.mjs "${GITHUB_REF_NAME#v}")"
+          gh release create "$GITHUB_REF_NAME" --draft $pre --title "Revive ${GITHUB_REF_NAME#v}" --notes "$notes"
+          gh release upload "$GITHUB_REF_NAME" release/*.dmg release/*.zip release/*.blockmap $(ls release/*.yml | grep -v builder-debug)
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      - name: Publish to Cloudflare R2
+        if: env.CSC_LINK != '' && env.REVIVE_UPDATE_URL != ''
+        run: scripts/upload-r2.sh release
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: revive-${{ github.ref_name }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.yml
+          retention-days: 30

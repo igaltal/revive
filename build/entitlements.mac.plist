@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The only exception Revive asks of the hardened runtime. Each entry is
+  justified in PLAN.md (M11). Not sandboxed: Revive runs developer tools
+  (Claude Code, Codex, git, node, tmux) in folders the user chooses.
+-->
+<plist version="1.0">
+<dict>
+  <!-- V8 (Chromium and Node inside Electron) compiles JavaScript to machine code at run time. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>

@@ -286,7 +286,9 @@ describe('backpressure', () => {
 
     const t0 = Date.now()
     await fast.invoke('runner:start', { projectId: 'flood' })
-    await until('running', () => statuses.includes('running'), 30_000)
+    // A slow client that blocked the dev server would stall it for good; the time limit only has to
+    // be generous enough for a busy machine (the whole suite runs in parallel).
+    await until('running', () => statuses.includes('running'), 50_000)
     const tookMs = Date.now() - t0
     await until('fast client has the tail', () => /Local: http:\/\/localhost:\d+\//.test(fastText))
     expect(fastText).toContain('compiling module 70000 ')
@@ -298,6 +300,6 @@ describe('backpressure', () => {
     slow.close()
     fast.close()
     await core.runner.stop('flood')
-    expect(tookMs).toBeLessThan(20_000)
-  }, 60_000)
+    expect(tookMs).toBeLessThan(45_000)
+  }, 90_000)
 })

@@ -23,7 +23,7 @@ const CATCH_UP_EVERY_MS = 50
 /** A connection that hasn't answered a ping in this long is gone (a sleeping laptop, a dropped network). */
 const HEARTBEAT_MS = 15_000
 /** Streams that belong to this computer's own window, never sent to remote devices. */
-const LOCAL_STREAMS = new Set(['host:status', 'client:status', 'prereq:task'])
+const LOCAL_STREAMS = new Set(['host:status', 'client:status', 'prereq:task', 'update:status'])
 
 export interface HostServer {
   /** ws://127.0.0.1:<port>/ws */

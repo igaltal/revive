@@ -63,11 +63,13 @@ export const METHOD_NAMES = [
   'host:activity',
   'client:status',
   'client:connect',
-  'client:disconnect'
+  'client:disconnect',
+  'update:status',
+  'update:install'
 ] as const
 
 /** Main → client. */
-export const SERVER_STREAMS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done', 'guard:changed', 'runtime:event', 'session:output', 'host:status', 'client:status'] as const
+export const SERVER_STREAMS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done', 'guard:changed', 'runtime:event', 'session:output', 'host:status', 'client:status', 'update:status'] as const
 
 /** Client → main (fire and forget). */
 export const CLIENT_STREAMS = ['session:input', 'session:resize'] as const

@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen) · [x] M9 (browser client, phone PWA) · [x] M10 (look: Scenic and Paper, Home, Customize, screensavers)
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log) · [x] M8 (tmux sessions, terminal screen) · [x] M9 (browser client, phone PWA) · [x] M10 (look: Scenic and Paper, Home, Customize, screensavers) · [x] M11 (macOS download: DMG, bundled tmux, signing ready, updates, release pipeline)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -860,3 +860,120 @@ Built to `docs/HOST_PRD.md` "Screen experience", H4, H6 and H9, and the approved
 - **Photo mode:** the screensaver's photo mode uses your uploaded photos (the same list as the background).
 - **Screenshots:** Scenic pictures use the design's dusk; the skies set shows the other three.
 - **Packaging** must include `out/web` as before. systeminformation is a new dependency.
+
+### M11: done (2026-09-28): a professional macOS download
+
+No UI changes beyond the requested "Update ready" note. Version **0.11.0**.
+
+**1. Build** (`electron-builder.config.cjs`, `npm run dist`)
+- **One universal disk image** (Apple silicon + Intel), plus a universal ZIP (what the updater downloads). macOS 11 or later.
+  - Each half is packaged separately, then merged into one app.
+  - node-pty is rebuilt for each architecture, and its `build/Release/pty.node` and `spawn-helper` are merged into universal binaries. Its macOS prebuilds, which it only falls back to, are kept per architecture. Windows binaries, sources and a stale local build are left out.
+- **Bundled tmux** (`scripts/build-tmux.sh`): tmux 3.7c with libevent 2.1.13, ncurses 6.5 (wide) and utf8proc 2.12.0.
+  - Built from source, checked against pinned SHA-256s, statically linked, for arm64 and x86_64, then merged with `lipo`.
+  - It links only `libSystem` and `libresolv`. The script fails if anything else sneaks in.
+  - It reads terminal descriptions from `/usr/share/terminfo`, which every Mac has.
+  - Tested running on both architectures (x86_64 under Rosetta), with UTF-8 and emoji.
+  - Output goes to `resources/bin/tmux`, which is not in git. CI caches it, keyed on the script.
+  - The checksums were taken from the first download (the projects don't all publish them), so they catch any later change.
+- **tmux lookup:** Revive uses its bundled tmux first, then a system one. `REVIVE_TMUX` still overrides, and development uses the bundled one too once built.
+- **Resources:** tmux.conf, the menu bar icons and the bundled tmux go in `Contents/Resources` (`src/main/paths.ts` finds them packaged or in development). The web app (`out/web`) is inside `app.asar` and is served from there.
+- **Size:** the DMG is 235 MB. Most of it is Electron for two architectures. Renderer-only packages (React, xterm, fonts, i18n) moved to devDependencies, since Vite already bundles them; the app code dropped from 29 MB to 14 MB.
+- **Designed disk image** (`build/background.tiff` with a Retina version, `build/icon.icns`, made by `scripts/make-art.mjs`):
+  - A 660×420 window: "Install Revive", the app icon, an orange arrow and the Applications folder, plus the volume icon.
+  - The app icon is the PWA's ring and dot, in a macOS rounded square.
+- **Move to Applications:** launched from outside `/Applications`, Revive offers to move itself (Move to Applications / Not now, with "Don't ask again"), using Electron's `app.moveToApplicationsFolder`. It never asks in development. `REVIVE_NO_MOVE_PROMPT=1` skips it for the installed-app test.
+
+**2. Signing and notarization**, switched on by configuration only
+- **Environment variables:**
+  - `CSC_LINK` (a .p12, base64 or a path) with `CSC_KEY_PASSWORD`, or `CSC_NAME` (a keychain identity), for the Developer ID Application certificate;
+  - `APPLE_API_KEY` (path to the .p8), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, for notarytool with an App Store Connect API key.
+  - The config refuses to notarize without a certificate.
+- **With them:**
+  - hardened runtime and a Developer ID signature on every binary (the bundled tmux, node-pty and Electron's helpers included);
+  - electron-builder notarizes the app and staples it;
+  - `scripts/notarize-dmg.cjs` then signs the DMG, submits it with `notarytool --wait`, requires the status "Accepted" (otherwise the build fails), staples it, and runs `spctl` on it.
+- **Without them (today):**
+  - electron-builder signs nothing, and `scripts/adhoc-sign.cjs` gives the finished app one consistent ad hoc signature. It runs on the Mac that built it and passes `codesign --verify --deep --strict`.
+  - It is not distributable: Gatekeeper rejects ad hoc apps that were downloaded.
+- **Entitlements** (`build/entitlements.mac.plist`, the same file for the app and its helpers): only **`com.apple.security.cs.allow-jit`**, because V8 (Chromium's and Node's JavaScript engine inside Electron) compiles JavaScript to machine code at run time. Nothing else is needed:
+  - no `allow-unsigned-executable-memory`: modern Electron uses JIT pages;
+  - no `disable-library-validation`: node-pty and tmux are signed with the same Developer ID, so library validation passes;
+  - no `allow-dyld-environment-variables`, and no sandbox. Revive runs developer tools in folders the user picks, so it ships outside the App Store, where the sandbox isn't required.
+  - The verification script fails if any other entitlement appears.
+- **Local builds in `~/Projects`:** iCloud Drive's File Provider keeps adding Finder metadata, which codesign refuses. `REVIVE_RELEASE_DIR` puts the output elsewhere (I used `~/Library/Caches/revive-release`). `scripts/after-pack.cjs` clears extended attributes before signing.
+- **Verification** (`scripts/verify-signature.sh <release dir>`; `--adhoc` for integrity only). CI runs it on every release once signing is on:
+  ```
+  codesign --verify --deep --strict --verbose=2 Revive.app
+  codesign -dv --verbose=4 Revive.app          # Authority=Developer ID Application, flags=…runtime
+  codesign -d --entitlements - --xml Revive.app   # only allow-jit
+  spctl --assess --type execute --verbose=4 Revive.app
+  xcrun stapler validate Revive.app
+  spctl --assess --type open --context context:primary-signature --verbose=4 Revive-x.y.z-universal.dmg
+  xcrun stapler validate Revive-x.y.z-universal.dmg
+  ```
+
+**3. Updates** (`src/main/services/updates.ts`, electron-updater)
+- **Feed** (chosen at build time):
+  - `REVIVE_UPDATE_URL`: a generic feed, e.g. a public Cloudflare R2 bucket, uploaded by `scripts/upload-r2.sh`. The installers go up first and the feed files last.
+  - `REVIVE_GITHUB_REPO=owner/name`: GitHub Releases. **The repository must be public** for apps to download from it, or use R2.
+  - Neither: the app has no `app-update.yml`, and updates are off.
+- **Channels:**
+  - A version like `0.12.0-beta.1` is on the beta channel (`beta-mac.yml`, and a GitHub pre-release).
+  - Stable versions are written to every channel, so beta users get them too.
+  - `REVIVE_UPDATE_CHANNEL` can override.
+- **Behaviour:**
+  - It checks a minute after launch and every 6 hours, downloads in the background, and installs on the next quit (`autoInstallOnAppQuit`).
+  - Errors are quiet and retried later.
+  - **Nothing ever calls `quitAndInstall` except the note's "Restart now" button**, so a Host running agents is never restarted by an update. Its tmux sessions would survive a restart anyway.
+  - No downgrades.
+- **The note:** `update:status` (a stream) and `update:install` (only when asked). They are app methods, never sent to paired devices; the browser client says "off".
+  - The note is small, at the bottom corner: "Update ready: Revive x installs when you quit. [Restart now] [×]", with `role="status"` and no dialog.
+  - Strings are in English and Hebrew.
+
+**4. Release pipeline** (`.github/workflows/`)
+- **`ci.yml`, on push and pull requests** (macOS 14): npm ci, bundled tmux (cached), typecheck, lint, unit and tmux tests, e2e.
+- **`release.yml`, on a `v*.*.*` tag:**
+  1. Checks the tag matches package.json and CHANGELOG.md has that version.
+  2. Runs every check.
+  3. Builds, signs and notarizes (when the secrets exist).
+  4. Runs `verify-signature.sh`.
+  5. Installs the DMG and runs the installed-app test, also the Intel half under Rosetta.
+  6. Publishes: to GitHub, a draft with the verified files, then published with the CHANGELOG section as notes; or to R2.
+  7. Keeps the build as a workflow artifact.
+  - Without a certificate it builds ad hoc and publishes nothing.
+- **Versions:** semantic, with `-beta.N` for beta. CHANGELOG.md is in plain words.
+
+**5. Tests**
+- **Unit** (310 tests plus 5 real-tmux):
+  - The updater: channels, background download, the first check after a minute, "ready" survives later errors, and it never restarts on its own, even after 30 days.
+  - The note: hidden until ready, a status and not a dialog, and it installs only on click.
+  - The move offer: dev, `/Applications` and skip never ask; "Not now" and "Don't ask again"; a failed move.
+  - The bundled tmux is first; a separate socket per data folder.
+- **The installed app** (`npm run test:packaged`, after `npm run dist`):
+  1. Opens the real DMG and checks the Applications link, background, volume icon and window layout file.
+  2. Copies the app out as Finder does, then ejects.
+  3. Checks both architectures (app, tmux, node-pty), `codesign --verify`, and that tmux needs no Homebrew.
+  4. Launches it with a fresh data folder and a PATH without Homebrew.
+  5. Reads the sample folder, runs a project, and opens a terminal.
+  6. Checks the shell is inside `$TMUX` on this app's own socket, and that the running server is `…/Revive.app/Contents/Resources/bin/tmux`, never the real `revive` socket.
+  - **Run locally with a real Claude Code scan** (`REVIVE_REAL_SCAN=1`; costs a few cents): passed. Without it, as in CI, it starts from a data folder as if onboarding and a scan were done: passed.
+  - **The Intel half** (`REVIVE_TEST_ARCH=x86_64`, Rosetta): passed, with `process.arch` x64.
+- **Updates from a feed:** a local server stands in for R2 and announces "99.0.0" with the real ZIP.
+  - The app fetched the feed, downloaded 234 MB in the background, and said "ready" with no dialog and no restart.
+  - Unsigned, "ready" works only because it's the same bundle, whose ad hoc signature matches itself. Real updates need both versions signed with the Developer ID.
+- **Existing suites:** all 12 e2e tests still pass with the bundled tmux.
+
+**Found and fixed along the way**
+- A back-pressure test could time out when the whole suite ran in parallel (a busy machine, not a stall). Its limit is now generous; the point it proves, that the dev server never stalls, is unchanged.
+- An M10 Home test's wait was too short under load.
+
+**Notes for you**
+- **Signing on:** once the Developer ID Application certificate and an App Store Connect API key exist, add the secrets listed at the top of `release.yml`. Locally, export the same variables and run `npm run dist`.
+- **Nothing is published yet.** This repository has no GitHub remote, so the workflows have not run on GitHub. `ci.yml` and `release.yml` parse as YAML, but actionlint wasn't available to check them further.
+- **Bundle id `app.revive.mac`:** it can't change after the first public release without breaking updates. Tell me if you want a domain you own instead.
+- **Not tested:**
+  - notarization and stapling (they need the certificate and key);
+  - a real update between two different signed versions;
+  - "Move to Applications" clicked for real (it would move this build into your `/Applications`);
+  - looking at the DMG window's artwork on screen. Finder opened it at the designed 660×420 with its title, but this terminal can't take screenshots.

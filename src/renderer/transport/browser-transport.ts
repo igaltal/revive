@@ -42,7 +42,9 @@ export class BrowserTransport extends WsTransport {
       location.reload()
       return { ...this.status, state: 'local' }
     }
-    if (method.startsWith('host:') || method === 'client:connect') throw new RemoteError('not_available', `${method} isn't available in the browser`)
+    // A web page has no app to update: the Host updates itself.
+    if (method === 'update:status') return { state: 'off', current: '', version: null, channel: 'latest', percent: null }
+    if (method.startsWith('host:') || method.startsWith('update:') || method === 'client:connect') throw new RemoteError('not_available', `${method} isn't available in the browser`)
     if (method === 'settings:get') return this.withUi((await super.call(method, input)) as Settings)
     if (method === 'settings:set') {
       const patch = input as SettingsPatch

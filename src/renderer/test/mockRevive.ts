@@ -61,6 +61,7 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     'scan:start': () => ({ scanId: 'scan-1' }),
     'runtime:head': () => ({ seq: 0 }),
     'client:status': () => ({ state: 'local', host: null, problem: null, capabilities: capabilitiesFor('ipc') }),
+    'update:status': () => ({ state: 'off', current: '0.11.0', version: null, channel: 'latest', percent: null }),
     'host:status': () => HOST_OFF,
     'host:activity': () => [],
     'sessions:output': (a) => ({ sessionId: (a as { sessionId: string }).sessionId, epoch: 'e1', data: '', fromOffset: 0, nextOffset: 0, truncated: false }),

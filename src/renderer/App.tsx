@@ -25,6 +25,7 @@ import { FolderStep } from '@/screens/onboarding/FolderStep'
 import { PrereqStep } from '@/screens/onboarding/PrereqStep'
 import { SceneBackdrop } from '@/components/SceneBackdrop'
 import { Screensaver } from '@/components/Screensaver'
+import { UpdateNote } from '@/components/UpdateNote'
 import { useNarrow } from '@/components/media'
 import { cx } from '@/components/cx'
 
@@ -45,6 +46,7 @@ export function App(): ReactNode {
       <Screens />
       <PairingRequests host={host} />
       <Screensaver />
+      <UpdateNote />
     </>
   )
 }
