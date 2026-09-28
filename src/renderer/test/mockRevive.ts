@@ -1,6 +1,21 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import type { MethodName, ServerStreamName, ServerStreamPayload } from '@shared/contract'
 import type { DesktopBridge } from '@shared/transport'
+import { capabilitiesFor } from '@shared/contract'
+import type { HostStatus } from '@shared/host'
+
+export const HOST_OFF: HostStatus = {
+  sharing: false,
+  port: null,
+  hostName: 'Studio Mac',
+  tailscale: { state: 'available', address: null },
+  sleepMinutes: 0,
+  startAtLogin: false,
+  pairing: null,
+  lockedUntil: null,
+  requests: [],
+  devices: []
+}
 import type { PrereqReport } from '@shared/prereq'
 
 export const READY_REPORT: PrereqReport = {
@@ -35,6 +50,9 @@ export function installMockRevive(initial: Partial<Settings> = {}, handlers: Han
     'scan:active': () => null,
     'scan:start': () => ({ scanId: 'scan-1' }),
     'runtime:head': () => ({ seq: 0 }),
+    'client:status': () => ({ state: 'local', host: null, problem: null, capabilities: capabilitiesFor('ipc') }),
+    'host:status': () => HOST_OFF,
+    'host:activity': () => [],
     'sessions:output': (a) => ({ sessionId: (a as { sessionId: string }).sessionId, data: '', fromOffset: 0, nextOffset: 0, truncated: false }),
     'guard:status': () => ({ state: 'ok', version: '2.1.283', checkedAt: '2026-09-27T00:00:00.000Z' }),
     'runner:list': () => [],

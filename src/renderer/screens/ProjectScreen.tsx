@@ -19,6 +19,7 @@ import { cx } from '@/components/cx'
 import { Dialog } from '@/components/Dialog'
 import { RestoreDialog, RestoreDone, VersionTitle } from '@/components/versions'
 import { useVersions } from '@/state/versions'
+import { useHostName } from '@/state/client'
 import type { VersionSummary } from '@shared/versions'
 
 function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
@@ -56,6 +57,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
   const { manifest } = useProjects()
   const { runs, shots, start, stop } = useRuntime()
   const caps = transport.capabilities()
+  const hostName = useHostName()
   const [device, setDevice] = useState<PreviewDevice>('desktop')
   const log = useProjectLog(projectId)
   const { versions, lastRestore } = useVersions()
@@ -127,9 +129,10 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           <ProjectPicture project={project} src={shots[projectId]} className={cx('h-72', status.kind === 'busy' && 'opacity-60')} />
           {status.kind === 'running' ? (
             // No live view on this client: the latest picture, and where it runs.
-            <p className="px-5 py-3 text-sm text-muted" data-testid="preview-remote">
-              {tx('preview.remote')}
-            </p>
+            <div className="flex flex-col gap-2 px-5 py-3" data-testid="preview-remote">
+              <p className="text-sm text-muted">{hostName ? tx('preview.remoteOn', { host: hostName }) : tx('preview.remote')}</p>
+              {url ? <LtrBlock>{url}</LtrBlock> : null}
+            </div>
           ) : status.kind === 'busy' ? (
             <div className="flex flex-col gap-3 px-5 py-4" data-testid="run-progress">
               <p className="text-[15px] text-ink">{tx(`run.busy.${status.phase}`)}</p>

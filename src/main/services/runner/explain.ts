@@ -1,10 +1,10 @@
 import { stripAnsi } from '@shared/ansi'
-import type { BrokenReason } from '@shared/runtime'
+import type { BrokenReason, RunStep } from '@shared/runtime'
 
 export interface ExplainInput {
   /** Output of the failed step, masked. */
   log: string[]
-  step: 'install' | 'dev' | 'serve'
+  step: RunStep
   timedOut: boolean
   /** Key names the manifest lists for this project. */
   keys: string[]

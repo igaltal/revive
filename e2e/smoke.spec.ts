@@ -244,36 +244,127 @@ test('go back to a saved version and undo it: preview hidden under dialogs, proj
   await app.close()
 })
 
-test('dev WebSocket: off by default; with REVIVE_DEV_WS=1 it prints a token once and serves the same contract', async () => {
-  const { WsTransport } = await import('../src/shared/ws-transport')
-  const stderrOf = (a: Awaited<ReturnType<typeof launch>>) => {
-    let text = ''
-    a.process().stderr?.on('data', (d: Buffer) => (text += d.toString()))
-    return () => text
+test('Host and client: pair through the UI, work from the other window, survive a Host restart, revoke', async () => {
+  test.setTimeout(120_000)
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const hostData = freshUserData()
+  const clientData = freshUserData()
+  const folder = sampleFolder()
+
+  // --- The Host: onboarding, read the folder, share this computer.
+  const startHost = async () => {
+    const a = await launch(hostData)
+    return { app: a, win: await a.firstWindow() }
   }
+  let host = await startHost()
+  await host.win.getByTestId('welcome-en').click()
+  await expect(host.win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await host.win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(host.app, folder)
+  await host.win.getByTestId('folder-pick').click()
+  await host.win.getByTestId('scan-start').click()
+  await expect(host.win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  await host.win.getByTestId('nav-settings').click()
+  await host.win.getByTestId('sharing-switch').click()
+  await expect(host.win.getByTestId('sharing-switch')).toHaveAttribute('aria-checked', 'true')
+  const port = JSON.parse(readFileSync(join(hostData, 'host.json'), 'utf8')).port as number
+  const address = `http://127.0.0.1:${port}`
 
-  // Off by default: nothing printed, nothing listening.
-  const plain = await launch(freshUserData())
-  const plainErr = stderrOf(plain)
-  await (await plain.firstWindow()).getByTestId('welcome-en').waitFor()
-  await plain.close()
-  expect(plainErr()).not.toContain('dev WebSocket')
+  // Browser pages from other origins are still refused, even for pairing.
+  const evil = await fetch(`${address}/pair`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{"code":"000000","deviceName":"x"}' })
+  expect(evil.status).toBe(403)
 
-  const app = await launch(freshUserData(), { REVIVE_DEV_WS: '1' })
-  const err = stderrOf(app)
+  await host.win.getByTestId('pair-start').click()
+  const code = (await host.win.getByTestId('pairing-code').textContent())!.trim()
+  expect(code).toMatch(/^\d{6}$/)
+
+  // --- The client: first launch, "Connect to another computer instead".
+  const client = await launch(clientData)
+  const cwin = await client.firstWindow()
+  await cwin.getByTestId('welcome-en').click()
+  await cwin.getByTestId('onboarding-connect').click()
+  await cwin.getByTestId('connect-address').fill(address)
+  await cwin.getByTestId('connect-code').fill(code)
+  await cwin.getByTestId('connect-name').fill('Travel laptop')
+  await cwin.getByTestId('connect-submit').click()
+  await expect(cwin.getByTestId('connect-waiting')).toContainText('to allow this computer')
+
+  // Nothing is issued until the user allows it on the Host.
+  const ask = host.win.getByTestId('pairing-request')
+  await expect(ask).toContainText('Allow Travel laptop to connect?', { timeout: 10_000 })
+  // No device exists yet: not even the devices file.
+  const { existsSync } = await import('node:fs')
+  expect(existsSync(join(hostData, 'devices.json'))).toBe(false)
+  await ask.getByTestId('pairing-allow').click()
+
+  // The client window becomes a window onto the Host: its projects, its name in the sidebar.
+  await expect(cwin.getByTestId('project-card')).toHaveCount(2, { timeout: 15_000 })
+  const pill = cwin.getByTestId('connection-pill')
+  await expect(pill).toHaveAttribute('data-state', 'open')
+  const hostName = (await pill.locator('bdi').textContent())!.trim()
+  // Only a hash on the Host; only an encrypted token on the client.
+  const stored = JSON.parse(readFileSync(join(clientData, 'client.json'), 'utf8')) as { token: string }
+  expect(readFileSync(join(hostData, 'devices.json'), 'utf8')).not.toContain(stored.token)
+
+  // Work from the client: the project starts on the Host; the preview says where it runs.
+  await cwin.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
+  await expect(cwin.getByTestId('status-pill')).toHaveAttribute('data-status', 'running', { timeout: 30_000 })
+  await expect(cwin.getByTestId('preview-remote')).toContainText(`Preview runs on ${hostName}.`)
+  await expect(cwin.getByTestId('preview-remote')).toContainText('http://127.0.0.1:')
+  await expect(cwin.getByTestId('preview-frame')).toHaveCount(0)
+  // The Host's picture of it reaches the client through revive://, fetched from the Host with the device token.
+  const picture = cwin.getByTestId('project-picture')
+  await expect(picture).toHaveAttribute('src', /^revive:\/\/local\/shots\/bakery-site\.png\?v=\d+$/, { timeout: 20_000 })
+  await expect.poll(() => picture.evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth), { timeout: 10_000 }).toBeGreaterThan(100)
+  // The Host's log names the device.
+  await host.win.getByTestId('nav-projects').click()
+  await host.win.getByTestId('nav-settings').click()
+  await expect(host.win.getByTestId('activity')).toContainText('Travel laptop · started · bakery-site')
+
+  // --- The Host restarts: the client reconnects by itself, without pairing again.
+  await host.app.close()
+  await expect(pill).toHaveAttribute('data-state', 'reconnecting', { timeout: 30_000 })
+  host = await startHost()
+  await expect(cwin.getByTestId('connection-pill')).toHaveAttribute('data-state', 'open', { timeout: 30_000 })
+  expect(JSON.parse(readFileSync(join(hostData, 'host.json'), 'utf8')).port).toBe(port)
+  await cwin.getByTestId('nav-projects').click()
+  await expect(cwin.getByTestId('project-card')).toHaveCount(2)
+
+  // --- Revoke on the Host: the client is out within a second or two, and says so.
+  await host.win.getByTestId('nav-settings').click()
+  await host.win.getByTestId('device-row').filter({ hasText: 'Travel laptop' }).getByTestId('device-revoke').click()
+  await host.win.getByTestId('device-revoke-confirm').click()
+  await expect(cwin.getByTestId('client-rejected')).toContainText(`${hostName} no longer allows this computer`, { timeout: 3000 })
+  await cwin.getByTestId('client-forget').click()
+  await expect(cwin.getByTestId('prereq-continue')).toBeVisible({ timeout: 15_000 })
+
+  await client.close()
+  await host.app.close()
+})
+
+test('while sharing, closing the window leaves Revive running and serving; quitting stops it', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const userData = freshUserData()
+  const app = await launch(userData)
   const win = await app.firstWindow()
   await win.getByTestId('welcome-en').click()
-  await expect.poll(() => /dev WebSocket: (ws:\/\/127\.0\.0\.1:\d+\/ws) token=(\S+)/.exec(err()) !== null, { timeout: 10_000 }).toBe(true)
-  const [, url, token] = /dev WebSocket: (ws:\/\/127\.0\.0\.1:\d+\/ws) token=(\S+)/.exec(err())!
-  expect(err().match(/dev WebSocket/g)).toHaveLength(1)
+  await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })
+  await win.getByTestId('prereq-continue').click()
+  await stubFolderDialog(app, sampleFolder())
+  await win.getByTestId('folder-pick').click()
+  await win.getByTestId('nav-settings').click()
+  await win.getByTestId('sharing-switch').click()
+  await expect(win.getByTestId('sharing-switch')).toHaveAttribute('aria-checked', 'true')
+  const port = JSON.parse(readFileSync(join(userData, 'host.json'), 'utf8')).port as number
 
-  const client = new WsTransport({ url: url!, httpUrl: url!.replace('ws://', 'http://').replace(/\/ws$/, ''), token: token! })
-  await client.connect()
-  // The language chosen in the window is what the remote client reads: one core, two transports.
-  await expect.poll(async () => (await client.invoke('settings:get')).uiLanguage).toBe('en')
-  await expect(client.invoke('folder:pick')).rejects.toMatchObject({ code: 'not_available' })
-  const wrong = new WsTransport({ url: url!, httpUrl: '', token: 'nope' })
-  await expect(wrong.connect()).rejects.toMatchObject({ code: 'unreachable' })
-  client.close()
+  await win.close()
+  await new Promise((r) => setTimeout(r, 1000))
+  // Still sharing: the Host answers (and still wants a device token).
+  expect((await fetch(`http://127.0.0.1:${port}/whoami`)).status).toBe(401)
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+  // Quitting (the menu bar's Quit) stops the server with it.
   await app.close()
+  await expect(fetch(`http://127.0.0.1:${port}/whoami`)).rejects.toThrow()
 })

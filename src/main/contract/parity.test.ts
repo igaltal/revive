@@ -8,9 +8,10 @@ import type { DesktopBridge, Transport } from '@shared/transport'
 import { WsTransport } from '@shared/ws-transport'
 import { IpcTransport } from '../../renderer/transport/ipc-transport'
 import { createHandlers, type Core } from './handlers'
-import { makeCore, platform, until } from './testing'
+import { makeCore, platform, startTestHost, until } from './testing'
 import { registerIpc } from './ipc'
-import { startDevWsServer, type DevWsServer } from './ws-server'
+import { hubSink, noAppHandlers } from './dispatch'
+import type { HostServer } from './host-server'
 
 interface Harness {
   client: Transport & { resume(): Promise<void> }
@@ -28,9 +29,9 @@ async function ipcHarness(core: Core): Promise<Harness> {
   let dropped = false
   registerIpc({
     ipcMain: { handle: ((n: string, fn: never) => handles.set(n, fn)) as never, on: ((n: string, fn: never) => ons.set(n, fn)) as never },
-    handlers: createHandlers(core, platform),
+    handlers: { ...createHandlers(core, platform), ...noAppHandlers() },
     streams: core.streams,
-    hub: core.hub,
+    sessions: hubSink(core.hub),
     target: () => ({
       isDestroyed: () => false,
       // Electron serializes IPC with structured clone.
@@ -68,15 +69,9 @@ async function ipcHarness(core: Core): Promise<Harness> {
 }
 
 /** A real WebSocket server in process, and the real WsTransport. */
-async function wsHarness(core: Core): Promise<Harness & { server: DevWsServer }> {
-  const server = await startDevWsServer({
-    handlers: createHandlers(core, platform),
-    streams: core.streams,
-    hub: core.hub,
-    assets: () => core.workspace.projectIds(),
-    checkOutputs: true
-  })
-  const client = new WsTransport({ url: server.url, httpUrl: server.httpUrl, token: server.token, retry: { minMs: 20, maxMs: 100 } })
+async function wsHarness(core: Core): Promise<Harness & { server: HostServer }> {
+  const { server, token } = await startTestHost(core)
+  const client = new WsTransport({ url: server.url, httpUrl: server.httpUrl, token, retry: { minMs: 20, maxMs: 100 } })
   await client.connect()
   let state = 'open'
   client.onConnection((st) => (state = st))

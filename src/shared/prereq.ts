@@ -25,7 +25,8 @@ export const HELP_PAGES = {
   'claude-install': 'https://code.claude.com/docs/en/setup',
   'claude-sign-in': 'https://code.claude.com/docs/en/authentication',
   git: 'https://git-scm.com/download/mac',
-  node: 'https://nodejs.org/en/download'
+  node: 'https://nodejs.org/en/download',
+  tailscale: 'https://tailscale.com/download/mac'
 } as const
 export type HelpTopic = keyof typeof HELP_PAGES
 

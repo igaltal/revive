@@ -5,8 +5,8 @@ import { capabilitiesFor, METHODS } from '../src/shared/contract'
 import { CLIENT_STREAMS, METHOD_NAMES } from '../src/shared/contract-names'
 import { registerIpc } from '../src/main/contract/ipc'
 import { dispatch, type Handlers } from '../src/main/contract/dispatch'
+import { LOCAL_DEVICE } from '../src/shared/host'
 import { ServerStreams } from '../src/main/contract/streams'
-import type { SessionHub } from '../src/main/services/sessions/session-hub'
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -26,7 +26,7 @@ describe('the contract registry', () => {
       ipcMain: { handle: (name: string) => void handled.push(name), on: ((name: string) => on.push(name)) as never },
       handlers: anyHandlers,
       streams: new ServerStreams(),
-      hub: {} as SessionHub,
+      sessions: { write: () => {}, resize: () => {} },
       target: () => null,
       checkOutputs: true
     })
@@ -47,20 +47,24 @@ describe('the contract registry', () => {
   })
 
   it('refuses methods outside the registry, bad input, and local-only methods over the network', async () => {
-    await expect(dispatch(anyHandlers, 'fs:readFile', {}, { transport: 'ipc' }, true)).rejects.toMatchObject({ code: 'unknown_method' })
-    await expect(dispatch(anyHandlers, 'runner:start', { projectId: '' }, { transport: 'ipc' }, true)).rejects.toMatchObject({ code: 'bad_input' })
-    await expect(dispatch(anyHandlers, 'trash:empty', { confirm: 'yes' }, { transport: 'ws' }, true)).rejects.toMatchObject({ code: 'bad_input' })
-    await expect(dispatch(anyHandlers, 'folder:pick', undefined, { transport: 'ws' }, true)).rejects.toMatchObject({ code: 'not_available' })
+    await expect(dispatch(anyHandlers, 'fs:readFile', {}, { transport: 'ipc', device: LOCAL_DEVICE }, true)).rejects.toMatchObject({ code: 'unknown_method' })
+    await expect(dispatch(anyHandlers, 'runner:start', { projectId: '' }, { transport: 'ipc', device: LOCAL_DEVICE }, true)).rejects.toMatchObject({ code: 'bad_input' })
+    await expect(dispatch(anyHandlers, 'trash:empty', { confirm: 'yes' }, { transport: 'ws', device: { id: 'd', name: 'Laptop' } }, true)).rejects.toMatchObject({ code: 'bad_input' })
+    await expect(dispatch(anyHandlers, 'folder:pick', undefined, { transport: 'ws', device: { id: 'd', name: 'Laptop' } }, true)).rejects.toMatchObject({ code: 'not_available' })
     // An output outside the contract is caught before any client sees it.
-    await expect(dispatch(anyHandlers, 'settings:get', undefined, { transport: 'ipc' }, true)).rejects.toMatchObject({ code: 'bad_output' })
+    await expect(dispatch(anyHandlers, 'settings:get', undefined, { transport: 'ipc', device: LOCAL_DEVICE }, true)).rejects.toMatchObject({ code: 'bad_output' })
   })
 
   it('capabilities follow from which methods a transport may call', () => {
-    expect(capabilitiesFor('ipc')).toEqual({ nativePreview: true, folderPicker: true, dropFolder: true, openInBrowser: true, installTools: true, openHelp: true })
-    expect(capabilitiesFor('ws')).toEqual({ nativePreview: false, folderPicker: false, dropFolder: false, openInBrowser: false, installTools: false, openHelp: false })
-    const localOnly = METHOD_NAMES.filter((m) => !METHODS[m].remote).sort()
+    expect(capabilitiesFor('ipc')).toEqual({ nativePreview: true, folderPicker: true, dropFolder: true, openInBrowser: true, installTools: true, openHelp: true, hostControls: true })
+    expect(capabilitiesFor('ws')).toEqual({ nativePreview: false, folderPicker: false, dropFolder: false, openInBrowser: false, installTools: false, openHelp: false, hostControls: false })
+    const localOnly = METHOD_NAMES.filter((m) => !METHODS[m].remote && !(METHODS[m] as { app: boolean }).app).sort()
     expect(localOnly).toEqual(
       ['folder:pick', 'prereq:installClaude', 'prereq:signIn', 'preview:cover', 'preview:hide', 'preview:openInBrowser', 'preview:reload', 'preview:show', 'preview:uncover', 'shell:openHelp'].sort()
     )
+    // Host and client controls never go over the network, and nothing app-level is remote.
+    const app = METHOD_NAMES.filter((m) => (METHODS[m] as { app: boolean }).app)
+    expect(app.every((m) => m.startsWith('host:') || m.startsWith('client:'))).toBe(true)
+    expect(app.some((m) => METHODS[m].remote)).toBe(false)
   })
 })

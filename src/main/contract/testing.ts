@@ -5,7 +5,12 @@ import type { Manifest } from '@shared/manifest'
 import { createCore, SKIPPED_GUARD } from '../app/core'
 import { fakeAdapter } from '../scanner/fake-adapter'
 import { childBackend } from '../services/sessions/child-backend'
-import type { Core, Platform } from './handlers'
+import { createHandlers, type Core, type Platform } from './handlers'
+import { noAppHandlers, withActionLog } from './dispatch'
+import { startHostServer } from './host-server'
+import { DeviceRegistry } from '../services/host/devices'
+import { Pairing } from '../services/host/pairing'
+import { ActionLog } from '../services/host/action-log'
 
 /** Test support for the contract suites: the real core over a temp folder, without Electron. */
 
@@ -67,3 +72,25 @@ export function makeCore(): { core: Core; folder: string } {
   return { core, folder }
 }
 
+
+/** A real Host server over the real core, with a device already paired (its token returned). */
+export async function startTestHost(core: Core, opts: { port?: number; dir?: string; publicHosts?: string[] } = {}) {
+  const dir = opts.dir ?? mkdtempSync(join(tmpdir(), 'revive-host-'))
+  const devices = new DeviceRegistry(join(dir, 'devices.json'))
+  const pairing = new Pairing(devices)
+  const log = new ActionLog(join(dir, 'action-log.jsonl'))
+  const server = await startHostServer({
+    handlers: { ...withActionLog(createHandlers(core, platform), log), ...noAppHandlers() },
+    streams: core.streams,
+    hub: core.hub,
+    devices,
+    pairing,
+    hostName: 'Test Host',
+    assets: () => core.workspace.projectIds(),
+    publicHosts: () => opts.publicHosts ?? [],
+    port: opts.port,
+    checkOutputs: true
+  })
+  const { device, token } = devices.add('Test laptop')
+  return { server, devices, pairing, log, dir, token, deviceId: device.id }
+}

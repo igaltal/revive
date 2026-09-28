@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/useT'
 import { LanguageSwitch } from './LanguageSwitch'
+import { ConnectionPill } from './host'
 import { ClockIcon, GearIcon, GridIcon } from './icons'
 import { cx } from './cx'
 
@@ -43,7 +44,8 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
         })}
       </nav>
 
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-3">
+        <ConnectionPill />
         <LanguageSwitch />
       </div>
     </aside>

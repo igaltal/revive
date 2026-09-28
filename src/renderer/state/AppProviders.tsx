@@ -4,17 +4,20 @@ import { ProjectsProvider } from './projects'
 import { RuntimeProvider } from './runtime'
 import { OverlayProvider } from './overlay'
 import { VersionsProvider } from './versions'
+import { ClientProvider } from './client'
 
 export function AppProviders({ children }: { children: ReactNode }): ReactNode {
   return (
-    <SettingsProvider>
-      <ProjectsProvider>
-        <RuntimeProvider>
-          <VersionsProvider>
-            <OverlayProvider>{children}</OverlayProvider>
-          </VersionsProvider>
-        </RuntimeProvider>
-      </ProjectsProvider>
-    </SettingsProvider>
+    <ClientProvider>
+      <SettingsProvider>
+        <ProjectsProvider>
+          <RuntimeProvider>
+            <VersionsProvider>
+              <OverlayProvider>{children}</OverlayProvider>
+            </VersionsProvider>
+          </RuntimeProvider>
+        </ProjectsProvider>
+      </SettingsProvider>
+    </ClientProvider>
   )
 }

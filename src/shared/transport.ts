@@ -18,7 +18,8 @@ export type InvokeArgs<M extends MethodName> = undefined extends MethodInput<M> 
 /** Server streams a screen can subscribe to directly. Session output is watched per session. */
 export type EventStreamName = Exclude<ServerStreamName, 'session:output'>
 
-export type ConnectionState = 'open' | 'reconnecting'
+/** `rejected`: the Host no longer accepts this device (revoked); it won't retry. */
+export type ConnectionState = 'open' | 'reconnecting' | 'rejected'
 
 /**
  * How a client talks to Revive's core. The desktop renderer uses the IPC

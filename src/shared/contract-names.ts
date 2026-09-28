@@ -40,11 +40,26 @@ export const METHOD_NAMES = [
   'versions:restore',
   'versions:undo',
   'trash:info',
-  'trash:empty'
+  'trash:empty',
+  'sessions:open',
+  'sessions:close',
+  'sessions:list',
+  'host:status',
+  'host:setSharing',
+  'host:setStartAtLogin',
+  'host:exposeTailscale',
+  'host:startPairing',
+  'host:cancelPairing',
+  'host:answerPairing',
+  'host:revokeDevice',
+  'host:activity',
+  'client:status',
+  'client:connect',
+  'client:disconnect'
 ] as const
 
 /** Main → client. */
-export const SERVER_STREAMS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done', 'guard:changed', 'runtime:event', 'session:output'] as const
+export const SERVER_STREAMS = ['settings:changed', 'prereq:task', 'scan:progress', 'scan:done', 'guard:changed', 'runtime:event', 'session:output', 'host:status', 'client:status'] as const
 
 /** Client → main (fire and forget). */
 export const CLIENT_STREAMS = ['session:input', 'session:resize'] as const

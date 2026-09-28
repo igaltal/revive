@@ -19,7 +19,6 @@ import { resolve } from 'node:path'
 /** Launches the built app with throwaway settings and the offline stand-in for Claude. */
 export function launch(userData: string, env: Record<string, string> = {}): Promise<ElectronApplication> {
   const base = { ...process.env } as Record<string, string>
-  delete base['REVIVE_DEV_WS']
   return electron.launch({
     args: ['.'],
     env: { ...base, REVIVE_USER_DATA: userData, REVIVE_TEST_AGENT: resolve('fixtures/sample-folder.manifest.json'), ...env }

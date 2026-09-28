@@ -15,7 +15,9 @@ import type { RuntimeBus } from '../services/runtime-bus'
 import type { SessionHub } from '../services/sessions/session-hub'
 import type { VersionService } from '../services/versions/version-service'
 import { listShots } from '../services/shots/shots'
-import type { Handlers } from './dispatch'
+import type { CoreHandlers } from './dispatch'
+import type { Terminals } from '../services/terminals'
+import { parseSessionId as parseId } from '@shared/runtime'
 import type { ServerStreams } from './streams'
 
 /** What only the desktop app can do. Tests and headless setups pass a stand-in. */
@@ -43,6 +45,7 @@ export interface Core {
   hub: SessionHub
   versions: VersionService
   streams: ServerStreams
+  terminals: Terminals
   guard: { current: () => GuardState; recheck: () => Promise<GuardState> }
 }
 
@@ -50,7 +53,7 @@ export interface Core {
  * Every contract method, as one call into a service. Inputs arrive already
  * validated by dispatch(); nothing here decides anything a service should.
  */
-export function createHandlers(core: Core, platform: Platform): Handlers {
+export function createHandlers(core: Core, platform: Platform): CoreHandlers {
   const { settings, workspace, runner, versions, streams } = core
   const notifySettings = () => streams.emit('settings:changed', settings.get())
 
@@ -133,6 +136,10 @@ export function createHandlers(core: Core, platform: Platform): Handlers {
     'versions:restore': (input) => versions.restore(input),
     'versions:undo': (input) => versions.undo(input),
     'trash:info': () => versions.trash(),
-    'trash:empty': (input) => versions.emptyTrash(input)
+    'trash:empty': (input) => versions.emptyTrash(input),
+
+    'sessions:open': ({ projectId, kind }) => core.terminals.open(projectId, kind),
+    'sessions:close': ({ sessionId }) => core.terminals.close(parseId(sessionId)!),
+    'sessions:list': () => core.terminals.list()
   }
 }

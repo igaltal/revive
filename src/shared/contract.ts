@@ -7,6 +7,7 @@ import type { FolderCheck, RecentFolder } from './folder'
 import type { ScanDone, ScanProgress } from './scan'
 import type { GuardState } from './guard'
 import { parseSessionId, SESSION_KINDS, type RunState, type SessionOutput, type StateEvent } from './runtime'
+import type { ActivityEntry, HostStatus, PairingCode } from './host'
 import { VERSION_ID, type RestorePreview, type RestoreResult, type TrashInfo, type VersionSummary } from './versions'
 
 /**
@@ -106,7 +107,7 @@ export const RunStateSchema = z.object({
 }) satisfies z.ZodType<RunState>
 
 const SessionRefSchema = z.object({ projectId: z.string(), kind: z.enum(SESSION_KINDS) })
-const RunStep = z.enum(['install', 'dev', 'serve'])
+const RunStep = z.enum(['install', 'dev', 'serve', 'terminal'])
 
 export const VersionSummarySchema = z.object({
   id: z.string(),
@@ -182,6 +183,51 @@ const RestoreResultSchema = z.discriminatedUnion('ok', [
 
 const TrashInfoSchema = z.object({ items: z.number().int(), bytes: z.number().int() }) satisfies z.ZodType<TrashInfo>
 
+const SessionInfoSchema = z.object({ sessionId: z.string(), projectId: z.string(), kind: z.enum(SESSION_KINDS), step: RunStep })
+
+export const PairingCodeSchema = z.object({ code: z.string(), expiresAt: Iso, link: z.string(), qrSvg: z.string() }) satisfies z.ZodType<PairingCode>
+
+export const HostStatusSchema = z.object({
+  sharing: z.boolean(),
+  port: z.number().int().nullable(),
+  hostName: z.string(),
+  tailscale: z.object({ state: z.enum(['missing', 'available', 'serving', 'error']), address: z.string().nullable(), detail: z.string().optional() }),
+  sleepMinutes: z.number().int().nullable(),
+  startAtLogin: z.boolean(),
+  pairing: PairingCodeSchema.nullable(),
+  lockedUntil: Iso.nullable(),
+  requests: z.array(z.object({ id: z.string(), deviceName: z.string(), at: Iso })),
+  devices: z.array(z.object({ id: z.string(), name: z.string(), createdAt: Iso, lastSeenAt: Iso.nullable(), online: z.boolean() }))
+}) satisfies z.ZodType<HostStatus>
+
+export const ActivityEntrySchema = z.object({
+  at: Iso,
+  deviceId: z.string(),
+  deviceName: z.string(),
+  method: z.string(),
+  summary: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+}) satisfies z.ZodType<ActivityEntry>
+
+const CapabilitiesSchema = z.object({
+  nativePreview: z.boolean(),
+  folderPicker: z.boolean(),
+  dropFolder: z.boolean(),
+  openInBrowser: z.boolean(),
+  installTools: z.boolean(),
+  openHelp: z.boolean(),
+  hostControls: z.boolean()
+}) satisfies z.ZodType<Capabilities>
+
+/** This app's connection: working on this computer, or a window onto another one. */
+export const ClientStatusSchema = z.object({
+  state: z.enum(['local', 'pairing', 'waiting', 'open', 'reconnecting', 'rejected']),
+  host: z.object({ name: z.string(), address: z.string() }).nullable(),
+  problem: z.enum(['bad_code', 'locked', 'expired', 'denied', 'unreachable', 'revoked', 'no_keychain']).nullable(),
+  /** What this window can do, given where its work happens. */
+  capabilities: CapabilitiesSchema
+})
+export type ClientStatus = z.infer<typeof ClientStatusSchema>
+
 const Px = z.number().finite().min(-10_000).max(100_000)
 export const BoundsSchema = z.object({ x: Px, y: Px, width: Px.min(0), height: Px.min(0) })
 export type Bounds = z.infer<typeof BoundsSchema>
@@ -196,37 +242,50 @@ interface MethodDef<I extends z.ZodType, O extends z.ZodType> {
   output: O
   /** Whether a remote client (WebSocket) may call it. */
   remote: boolean
+  /**
+   * Handled by the app on this computer itself (sharing, pairing, the client
+   * connection): never sent to a Host in client mode, never callable remotely.
+   */
+  app: boolean
+  /** Changes something: recorded in the action log with the device that asked. */
+  mutates: boolean
 }
-const remote = <I extends z.ZodType, O extends z.ZodType>(input: I, output: O): MethodDef<I, O> => ({ input, output, remote: true })
+type Flags = { mutates?: boolean }
+type Core<I extends z.ZodType, O extends z.ZodType> = MethodDef<I, O> & { app: false }
+type App<I extends z.ZodType, O extends z.ZodType> = MethodDef<I, O> & { app: true }
+const remote = <I extends z.ZodType, O extends z.ZodType>(input: I, output: O, f: Flags = {}): Core<I, O> => ({ input, output, remote: true, app: false, mutates: f.mutates ?? false })
 /** Only on the computer running Revive: native UI, installers, the native preview. */
-const localOnly = <I extends z.ZodType, O extends z.ZodType>(input: I, output: O): MethodDef<I, O> => ({ input, output, remote: false })
+const localOnly = <I extends z.ZodType, O extends z.ZodType>(input: I, output: O, f: Flags = {}): Core<I, O> => ({ input, output, remote: false, app: false, mutates: f.mutates ?? false })
+/** This app's own controls: Host mode and the client connection. */
+const appOnly = <I extends z.ZodType, O extends z.ZodType>(input: I, output: O, f: Flags = {}): App<I, O> => ({ input, output, remote: false, app: true, mutates: f.mutates ?? false })
+const M = { mutates: true }
 
 export const METHODS = {
   'settings:get': remote(None, SettingsSchema),
-  'settings:set': remote(SettingsPatchSchema, SettingsSchema),
+  'settings:set': remote(SettingsPatchSchema, SettingsSchema, M),
   'prereq:check': remote(None, PrereqReportSchema),
   /** Runs Anthropic's installer on this computer, after the user confirmed here. */
-  'prereq:installClaude': localOnly(None, None),
+  'prereq:installClaude': localOnly(None, None, M),
   /** Opens the sign-in page in this computer's browser. */
-  'prereq:signIn': localOnly(None, None),
+  'prereq:signIn': localOnly(None, None, M),
   'shell:openHelp': localOnly(z.object({ topic: z.enum(Object.keys(HELP_PAGES) as [HelpTopic, ...HelpTopic[]]) }), None),
   /** The native folder dialog. */
   'folder:pick': localOnly(None, FolderCheckSchema.nullable()),
   'folder:check': remote(z.object({ path: z.string().min(1).max(4096) }), FolderCheckSchema),
   /** Validates, then remembers the folder as current and recent. */
-  'folder:choose': remote(z.object({ path: z.string().min(1).max(4096) }), FolderCheckSchema),
+  'folder:choose': remote(z.object({ path: z.string().min(1).max(4096) }), FolderCheckSchema, M),
   'folder:recent': remote(None, z.array(RecentFolderSchema)),
   /** The manifest of the current folder, validated. */
   'manifest:get': remote(None, ManifestStateSchema),
   /** Reads the current folder. Returns the running scan if one is already going. */
-  'scan:start': remote(None, z.object({ scanId: z.string() })),
-  'scan:cancel': remote(z.object({ scanId: z.string().max(80) }), None),
+  'scan:start': remote(None, z.object({ scanId: z.string() }), M),
+  'scan:cancel': remote(z.object({ scanId: z.string().max(80) }), None, M),
   'scan:active': remote(None, z.object({ scanId: z.string() }).nullable()),
   /** Whether the installed Claude Code honours the turn limit. */
   'guard:status': remote(None, GuardStateSchema),
-  'guard:recheck': remote(None, GuardStateSchema),
-  'runner:start': remote(z.object({ projectId: ProjectId }), RunStateSchema),
-  'runner:stop': remote(z.object({ projectId: ProjectId }), RunStateSchema),
+  'guard:recheck': remote(None, GuardStateSchema, M),
+  'runner:start': remote(z.object({ projectId: ProjectId }), RunStateSchema, M),
+  'runner:stop': remote(z.object({ projectId: ProjectId }), RunStateSchema, M),
   'runner:list': remote(None, z.array(RunStateSchema)),
   /** The project's recent output, masked, colour codes removed. */
   'runner:logs': remote(z.object({ projectId: ProjectId }), z.array(z.string())),
@@ -250,16 +309,39 @@ export const METHODS = {
   'shots:list': remote(None, z.record(z.string(), z.string())),
   /** Newest first. */
   'versions:list': remote(None, z.array(VersionSummarySchema)),
-  'versions:save': remote(None, VersionSummarySchema),
+  'versions:save': remote(None, VersionSummarySchema, M),
   /** What going back would change; nothing is written. Null if the version or project is unknown. */
   'versions:preview': remote(VersionInput, RestorePreviewSchema.nullable()),
   /** With `projectId`, only that project's files go back. */
-  'versions:restore': remote(VersionInput, RestoreResultSchema),
+  'versions:restore': remote(VersionInput, RestoreResultSchema, M),
   /** `versionId` is RestoreResult.undoVersionId; the scope of the go back is kept. */
-  'versions:undo': remote(z.object({ versionId: z.string().regex(VERSION_ID) }), RestoreResultSchema),
+  'versions:undo': remote(z.object({ versionId: z.string().regex(VERSION_ID) }), RestoreResultSchema, M),
   'trash:info': remote(None, TrashInfoSchema),
   /** Only after the user confirmed: anything but `{ confirm: true }` is refused. */
-  'trash:empty': remote(z.object({ confirm: z.literal(true) }), TrashInfoSchema)
+  'trash:empty': remote(z.object({ confirm: z.literal(true) }), TrashInfoSchema, M),
+
+  // Interactive terminals: a shell, Claude Code or Codex in a project's folder. One per project and kind.
+  'sessions:open': remote(z.object({ projectId: ProjectId, kind: z.enum(['shell', 'claude', 'codex']) }), z.object({ sessionId: z.string(), created: z.boolean() }), M),
+  'sessions:close': remote(z.object({ sessionId: SessionIdSchema }), None, M),
+  'sessions:list': remote(None, z.array(SessionInfoSchema)),
+
+  // Host mode: this computer shared with paired devices. Only on the Host itself.
+  'host:status': appOnly(None, HostStatusSchema),
+  'host:setSharing': appOnly(z.object({ on: z.boolean() }), HostStatusSchema, M),
+  'host:setStartAtLogin': appOnly(z.object({ on: z.boolean() }), HostStatusSchema, M),
+  /** Runs `tailscale serve --bg <port>`; only after the user confirmed the exact command. */
+  'host:exposeTailscale': appOnly(z.object({ confirm: z.literal(true) }), HostStatusSchema, M),
+  'host:startPairing': appOnly(None, PairingCodeSchema, M),
+  'host:cancelPairing': appOnly(None, None),
+  /** Nothing is issued to a device until the user allows it here. */
+  'host:answerPairing': appOnly(z.object({ requestId: z.string().max(80), allow: z.boolean() }), HostStatusSchema, M),
+  'host:revokeDevice': appOnly(z.object({ deviceId: z.string().max(80) }), HostStatusSchema, M),
+  'host:activity': appOnly(z.object({ limit: z.number().int().min(1).max(500) }), z.array(ActivityEntrySchema)),
+
+  // Client mode: this app as a window onto another computer.
+  'client:status': appOnly(None, ClientStatusSchema),
+  'client:connect': appOnly(z.object({ address: z.string().min(1).max(300), code: z.string().regex(/^\d{6}$/), deviceName: z.string().min(1).max(60) }), ClientStatusSchema, M),
+  'client:disconnect': appOnly(None, ClientStatusSchema, M)
 } satisfies Record<MethodName, MethodDef<z.ZodType, z.ZodType>>
 
 /** Main → client streams. */
@@ -272,7 +354,11 @@ export const SERVER_STREAM_SCHEMAS = {
   /** Runner, session and version state changes: numbered, replayable with runtime:since. */
   'runtime:event': StateEventSchema,
   /** Terminal output of any session: live, not replayed; read the buffer with sessions:output. */
-  'session:output': SessionChunkSchema
+  'session:output': SessionChunkSchema,
+  /** Host mode changes (sharing, pairing requests, devices). Only on the Host itself. */
+  'host:status': HostStatusSchema,
+  /** This app's connection to another computer. */
+  'client:status': ClientStatusSchema
 } satisfies Record<ServerStreamName, z.ZodType>
 
 /** Client → main streams (fire and forget). */
@@ -285,6 +371,10 @@ export const CLIENT_STREAM_SCHEMAS = {
 // ---------- types ----------
 
 export type Methods = typeof METHODS
+/** Handled by this app itself: Host mode and the client connection. */
+export type AppMethodName = { [K in MethodName]: Methods[K]['app'] extends true ? K : never }[MethodName]
+/** Revive's core: the same on every computer, and what a client forwards to its Host. */
+export type CoreMethodName = Exclude<MethodName, AppMethodName>
 export type MethodInput<M extends MethodName> = z.input<Methods[M]['input']>
 export type MethodOutput<M extends MethodName> = z.output<Methods[M]['output']>
 export type ServerStreamPayload<S extends ServerStreamName> = z.output<(typeof SERVER_STREAM_SCHEMAS)[S]>
@@ -316,10 +406,12 @@ export interface Capabilities {
   installTools: boolean
   /** Opening help pages in this computer's browser. */
   openHelp: boolean
+  /** Sharing this computer, pairing and devices: only on the computer itself, in local mode. */
+  hostControls: boolean
 }
 
 /** The methods each capability needs. A capability is on only if its transport may call all of them. */
-export const CAPABILITY_METHODS: Record<Exclude<keyof Capabilities, 'dropFolder'>, MethodName[]> = {
+export const CAPABILITY_METHODS: Record<Exclude<keyof Capabilities, 'dropFolder' | 'hostControls'>, MethodName[]> = {
   nativePreview: ['preview:show', 'preview:hide', 'preview:cover', 'preview:uncover', 'preview:reload'],
   folderPicker: ['folder:pick'],
   openInBrowser: ['preview:openInBrowser'],
@@ -328,7 +420,8 @@ export const CAPABILITY_METHODS: Record<Exclude<keyof Capabilities, 'dropFolder'
 }
 
 export function availableOn(kind: TransportKind, method: MethodName): boolean {
-  return kind === 'ipc' || METHODS[method].remote
+  const def: { remote: boolean; app: boolean } = METHODS[method]
+  return kind === 'ipc' || (def.remote && !def.app)
 }
 
 export function capabilitiesFor(kind: TransportKind): Capabilities {
@@ -340,6 +433,9 @@ export function capabilitiesFor(kind: TransportKind): Capabilities {
     installTools: can(CAPABILITY_METHODS.installTools),
     openHelp: can(CAPABILITY_METHODS.openHelp),
     // Drag and drop needs a real file path, which only the desktop bridge can give.
-    dropFolder: kind === 'ipc'
+    dropFolder: kind === 'ipc',
+    hostControls: kind === 'ipc'
   }
 }
+
+

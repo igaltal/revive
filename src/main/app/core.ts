@@ -10,6 +10,7 @@ import { Workspace } from '../services/workspace'
 import { VersionService } from '../services/versions/version-service'
 import { saveShot } from '../services/shots/shots'
 import { ServerStreams } from '../contract/streams'
+import { Terminals } from '../services/terminals'
 import type { Core } from '../contract/handlers'
 
 export interface CoreOptions {
@@ -72,7 +73,8 @@ export function createCore(opts: CoreOptions): Core {
     }
   )
 
-  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, guard: opts.guard }
+  const terminals = new Terminals(hub, workspace)
+  return { settings, shellReady: opts.shellReady ?? Promise.resolve(), scans, workspace, runner, bus, hub, versions, streams, terminals, guard: opts.guard }
 }
 
 /** For setups without Claude (the offline test agent): nothing to check. */

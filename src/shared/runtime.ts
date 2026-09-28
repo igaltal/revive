@@ -41,7 +41,7 @@ export function parseSessionId(id: string): SessionRef | null {
 }
 
 /** What a run session is running right now, for the runner's own bookkeeping. */
-export type RunStep = 'install' | 'dev' | 'serve'
+export type RunStep = 'install' | 'dev' | 'serve' | 'terminal'
 
 export const RUN_STATUSES = ['idle', 'installing', 'starting', 'checking', 'running', 'stopping', 'stopped', 'broken'] as const
 export type RunStatus = (typeof RUN_STATUSES)[number]

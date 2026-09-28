@@ -152,7 +152,7 @@ Catalog parity plus ICU arguments; the no-physical-direction lint rule; manifest
 ---
 
 ## Progress
-- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam)
+- [x] M1 · [x] M2 · [x] M3 · [x] M4 · [x] M5 · [x] M6 (Host build order: transport seam) · [x] M7 (Host mode, pairing, devices, action log)
 
 ### M1: done (2026-09-25)
 - **Stack.** Electron 44, electron-vite 5, Vite 7, React 19, TypeScript 6.0, Tailwind 4, i18next 26 + i18next-icu, zod 4, Vitest 5, Playwright. I chose TS 6.0 and Vite 7 on purpose: typescript-eslint doesn't support TS 7 yet, and electron-vite 5 doesn't support Vite 8.
@@ -485,3 +485,94 @@ Everything else is available remotely, including reading the folder, start/stop,
 *Try it:* `REVIVE_DEV_WS=1 npm run dev`, then copy the URL and token it prints and, from another terminal (Node's built-in WebSocket, raw wire format):
 `node -e "const [u,t]=process.argv.slice(1); const ws=new WebSocket(u,['revive.v1','revive.token.'+t]); ws.onopen=()=>ws.send(JSON.stringify({t:'call',id:1,m:'runner:list'})); ws.onmessage=(e)=>{console.log(e.data); ws.close()}" <url> <token>`
 (checked against the built app). Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+
+### M7: done (2026-09-28): Host mode, pairing, device tokens, action log
+
+Built to `docs/HOST_PRD.md` H1, H7, H8 and "Security and privacy". The remote client is Revive itself on another computer. The dev flag and its startup token from M6 are gone.
+
+**Architecture choice: the client's `WsTransport` runs in the client's main process, not in its page.**
+- The device token never enters the renderer. Only main can use safeStorage anyway, and the page's CSP and network lockdown stay exactly as they were.
+- The page keeps talking IPC to its own main, which forwards core calls to the Host (`app/router.ts`).
+- Methods now carry two flags:
+  - **`app`**: sharing, pairing, devices and the client connection. These are always answered by this computer, never forwarded and never callable remotely; a test checks that none is remote.
+  - **`mutates`**: written to the action log.
+- In client mode the window gets a remote client's capabilities from `client:status`, so the unsupported features hide themselves.
+- The language and detail level stay this computer's own; every other setting is the Host's.
+- Pictures (`revive://local/shots/…`) are fetched from the Host by main, with the token.
+- Switching between local and client mode reloads the window, so nothing from one side lingers on the other.
+
+**1. Host mode**
+- **Settings → Share this computer** (a switch).
+  - When on, the Host server starts on **127.0.0.1 only**, on the same port as last time, so `tailscale serve` and paired devices keep working after a restart. If that port is taken, it picks another.
+  - Sharing comes back on by itself at the next start (`host.json`).
+- **The window can close while sharing:** Revive stays in the **menu bar** (Open Revive, Pause sharing, Quit Revive).
+- **"Start Revive when you log in"** uses `app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })`. Started with `--hidden` while sharing, it shows no window, only the menu bar icon.
+- **`powerSaveBlocker('prevent-app-suspension')`** is held while sharing. If `pmset` says the Mac sleeps after N minutes, a plain warning explains that closing the lid still sleeps it. On this Mac: `sleep 1`.
+- **Tailscale:**
+  - Detected via `tailscale status --json`, or the app's bundled CLI.
+  - If present: "Make it reachable", then a confirmation showing the exact `tailscale serve --bg <port>`, then only that command runs, then the https address (`https://<machine>.<tailnet>.ts.net`) is shown.
+  - If absent: "To reach this Mac from your other computers, install Tailscale, a free private network." plus a link.
+  - The tailnet name becomes an allowed Host header and Origin for the server. Never 0.0.0.0.
+
+**2. Pairing** (`services/host/pairing.ts`, `devices.ts`)
+- **Pair a device** shows a **six-digit code** and a **QR code of the pairing link** (`<address>/pair?code=…`), with a countdown.
+- **Codes:** single use, and they expire after **5 minutes**. **5 wrong tries lock pairing for 10 minutes.** Guesses count even when no code is showing, and the lock also throws the current code away.
+- **The client** POSTs the code and its name to `/pair`, then polls `/pair/<id>`.
+- **Approval:** the Host shows **"Allow <device name> to connect?"** over any screen. **Nothing is created until Allow:** before that, not even `devices.json` exists (checked in e2e). Unanswered requests expire after 5 minutes.
+- **Tokens:** on Allow, the Host issues a 32-byte token, handed to the device **once**, on its next poll. **The Host stores only its sha256 hash**, compared in constant time. The client stores it **only with safeStorage**; without a keychain it refuses to pair rather than store it in plain text.
+- **Found and fixed:** the pairing dialog stayed open with a used-up code after a device paired, hiding the "Allow?" question in the two-computer test. It now closes as soon as its code is used, and each "Pair a device" starts a fresh dialog.
+
+**3. Client mode**
+- **Where to connect:** at first launch, "Connect to another computer instead" (under the computer check); later, in **Settings → Connect to another computer**. You enter the address (e.g. `studio-mac.tailnet.ts.net`, or `http://127.0.0.1:port`), the code, and this computer's name.
+- **Waiting:** "Waiting for <Host> to allow this computer…". Every failure gets one plain sentence: wrong code, locked, expired, not allowed, unreachable, no keychain.
+- **Sidebar pill:** the Host's name, "Connected" or "Reconnecting…".
+- **When the Host can't be reached** at startup: "Connecting to <Host>…", with "Work on this computer".
+- **After a revoke:** "<Host> no longer allows this computer", also with a way back.
+- **Reconnecting:** by itself, with backoff (up to 5 s):
+  - A **heartbeat** (10 s from the client, and a 15 s ping from the server) catches connections that look open after sleep or a network change.
+  - **`powerMonitor` resume and unlock** reconnect immediately.
+  - After a reconnect, the page resumes through its own IPC transport: `runtime:since` from its last sequence number, and `sessions:output` from each session's offset.
+- **Revoked while away:** a refused reconnect asks `/whoami`. On 401 it stops for good (state `rejected`) instead of retrying forever. Calls on a revoked connection now **fail at once** instead of waiting forever; this was found by the revoke test.
+- **The preview** shows **"Preview runs on <Host>. Its address there:"** with the dev server address as text. Pictures come through the Host.
+
+**4. Devices and the action log**
+- **Settings → Devices:** name, "Connected now" or "Last seen …", and **Remove** (after a confirmation).
+- **Revoke** marks the device revoked and closes its live connections at once, with close code 4401 and a hard stop 200 ms later. Its token is refused from then on, at connect, over HTTP, and on `/whoami`.
+- **The action log:** every `mutates` method, from any device or this window (`local`), is appended as one JSON line to `userData/action-log.jsonl` with `{at, deviceId, deviceName, method, summary}`. The file is only ever appended to, with mode 600.
+  - **Summaries keep only a short list of plain fields** (projectId, versionId, sessionId, kind, path, address, deviceName, confirm/on/allow…). Strings are masked and cut to 120 characters. Everything else is listed **by name only** (e.g. `settings:set` → `fields: scanModel`), so file contents, terminal input, pairing codes and secret values can't be written.
+  - Calls forwarded to a Host are logged there, under the device that sent them, not on the client.
+- **Settings → Activity** shows the latest 20 entries in plain words ("Travel laptop · started · bakery-site").
+- **New for this:** `sessions:open` / `sessions:close` / `sessions:list`. An interactive terminal (a login shell, `claude` or `codex`) in a project's folder, one per project and kind, that any number of devices can watch and type into. **There's no terminal screen yet** (xterm.js is M8); these are contract methods, so "opened a terminal" is a real, logged action.
+
+**5. Tests.** 211 unit and component tests (was 186), plus 6 Electron e2e tests.
+- **Pairing** (fake clock): codes expire after 5 minutes, work once, 5 wrong tries lock for 10 minutes even for the right code, guesses count with no code shown, nothing is issued before approval, the token is handed out once and only its hash is stored, denied or unanswered requests never become devices, revoked tokens stop working.
+- **Host server:** 127.0.0.1 only (not reachable on the LAN address); a device token is required; **the Origin check still rejects browser pages** (evil origins, `null`, the Vite dev server), including for `/pair`; DNS rebinding is refused; the tailnet name and its https origin are accepted; pictures need a token; Host controls are refused remotely.
+- **A revoked device is disconnected in under a second** (measured), and its token is refused everywhere after.
+- **Two clients on the same session** both see the output, and input typed on either reaches it.
+- **Host restart:** the real `ClientService` pairs (the Host allows it), the server stops, a new one starts on the same port with the same devices, and a new `ClientService` with the same userData reconnects **without pairing**, gets Host events, and comes back by itself after a drop.
+- **The log** records the device for a restore, a run start and a terminal open. With a secret planted in `.env`, typed into the terminal, and set as a setting value, **the log file never contains it**.
+- **HostService** (stand-in platform and stand-in `tailscale` CLI): sharing on 127.0.0.1, keeping awake, persisted and restored on the same port, **exactly `tailscale serve --bg <port>`** and the resulting https address, "missing" with nothing run, pairing needs sharing.
+- **Renderer:** the switch, the sleep warning, the address, the pairing dialog (code and QR, closes once used, fresh on the next open), the tailscale confirmation showing the exact command, "Allow?" from any screen, devices with confirm-before-remove, activity by device; the client's connect form, waiting and error sentences, the pill (connected / reconnecting), "Preview runs on …", no Host controls in client mode, the connecting and rejected screens.
+
+**How client mode was tested across two machines: simulated on one Mac.** I have one machine, so the e2e test "Host and client" runs **two separate instances of the built app**, each with its own userData (its own settings, devices, client file and log), on the same Mac. The client connects to the Host's real server at `http://127.0.0.1:<port>`, as a second computer would through `tailscale serve`. Everything goes through the real UI:
+1. the Host reads the folder and turns on sharing; a browser-origin pairing attempt is refused;
+2. the code is read off the Host's screen and typed into the client's first-launch "Connect to another computer";
+3. "Allow?" appears on the Host (no device file before it) and is clicked;
+4. the client shows the Host's two projects and the pill; the token is stored encrypted on the client and never appears on the Host;
+5. starting a project from the client runs it on the Host, with "Preview runs on <Host>", the address, and the Host's picture;
+6. the Host's activity shows "Travel laptop · started · bakery-site";
+7. the Host app quits and relaunches: the client goes to "Reconnecting…" and back to "Connected" by itself, on the same port;
+8. Remove on the Host: the client shows "no longer allows this computer" within 3 s, and "Work on this computer" takes it back to local mode.
+- **What this doesn't cover:**
+  - **Real Tailscale HTTPS between two computers.** Tailscale is installed and signed in here, but I didn't run `tailscale serve`, because it changes your tailnet's configuration. The command is tested against a stand-in CLI. It's worth one real run, on your word.
+  - **Both instances share this Mac's keychain entry** ("Electron Safe Storage"). On two Macs each has its own.
+  - **Real sleep and wake, a Wi-Fi change, and the menu bar icon, clicked by hand.** The heartbeat, `powerMonitor` and tray code aren't exercised by a test.
+  - **Start at login.** The test doesn't toggle it, because that would change this Mac's real login items; it's covered through a stand-in.
+
+**Notes for you**
+- **Terminal input isn't logged keystroke by keystroke.** Opening and closing a terminal are logged (with device, project and kind); what's typed isn't. A command log would mean recording terminal input, which can contain secrets. I'd rather decide that together.
+- **The menu bar icon file** is loaded from `resources/`. There's no packaging setup yet (no electron-builder), so whoever adds packaging needs to include `resources/trayTemplate*.png`.
+- **Pairing codes are rate limited globally, not per device**, because everything arrives through `tailscale serve` from 127.0.0.1. A flood of wrong guesses locks pairing for everyone for 10 minutes, which is the safe way round.
+- **New dependency:** `qrcode` (QR as SVG, made in main and shown as an image).
+
+*Try it on two Macs:* on the Host, Settings → Share this computer → Make it reachable (confirm the `tailscale serve` command) → Pair a device. On the other Mac, first launch → "Connect to another computer instead" (or Settings), with the https address and the code; then Allow on the Host. On one Mac: `REVIVE_USER_DATA=$(mktemp -d) npm run dev` twice, and connect the second to `http://127.0.0.1:<port>` (the port is under Technical details in the sharing section). Checks: `npm run typecheck && npm run lint && npm test && npm run test:e2e`.

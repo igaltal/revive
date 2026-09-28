@@ -4,8 +4,10 @@
  * carry session output. Works in browsers and Node (no Buffer).
  */
 export const WS_PROTOCOL = 'revive.v1'
-/** The token travels as a second subprotocol: browsers can't set headers on a WebSocket. */
+/** The device token travels as a second subprotocol: browsers can't set headers on a WebSocket. */
 export const WS_TOKEN_PREFIX = 'revive.token.'
+/** Close code for a device that was revoked (or whose token isn't valid any more). */
+export const CLOSE_REVOKED = 4401
 
 export type ClientMessage =
   | { t: 'call'; id: number; m: string; i: unknown }
@@ -14,11 +16,16 @@ export type ClientMessage =
   | { t: 'unwatch'; s: string }
   | { t: 'input'; s: string; d: string }
   | { t: 'resize'; s: string; c: number; r: number }
+  /** Stream every session's output, each from wherever it is now (the desktop client's main process). */
+  | { t: 'watchAll' }
+  /** Heartbeat; the server answers pong. */
+  | { t: 'ping' }
 
 export type ServerMessage =
   | { t: 'ret'; id: number; ok: true; v: unknown }
   | { t: 'ret'; id: number; ok: false; e: { code: string; message: string } }
   | { t: 'ev'; s: string; p: unknown }
+  | { t: 'pong' }
 
 export interface OutputFrameHeader {
   /** Session id. */

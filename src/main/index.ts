@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerMonitor, powerSaveBlocker, session, shell, Tray } from 'electron'
+import { hostname } from 'node:os'
 import { join } from 'node:path'
 import type { GuardState } from '@shared/guard'
 import { exec } from './exec'
@@ -15,7 +16,23 @@ import { handleAssetProtocol, registerAssetScheme } from './services/shots/proto
 import { createCore, SKIPPED_GUARD } from './app/core'
 import { createHandlers, type Core } from './contract/handlers'
 import { registerIpc } from './contract/ipc'
-import { startDevWsServer } from './contract/ws-server'
+import { withActionLog } from './contract/dispatch'
+import { AppRouter, createAppHandlers } from './app/router'
+import { HostService } from './services/host/host-service'
+import { ClientService } from './services/client/client-service'
+import { safeStorageSecretStore } from './extensions/secret-store'
+import { ServerStreams } from './contract/streams'
+import { ActionLog } from './services/host/action-log'
+import { execFileSync } from 'node:child_process'
+
+/** The Mac's own name ("Noa's MacBook Air"), as devices will see it. */
+function computerName(): string {
+  try {
+    return execFileSync('/usr/sbin/scutil', ['--get', 'ComputerName'], { encoding: 'utf8', timeout: 2000 }).trim() || hostname()
+  } catch {
+    return hostname().replace(/\.local$/, '')
+  }
+}
 
 const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 let mainWindow: BrowserWindow | null = null
@@ -78,16 +95,22 @@ function lockDownNetwork(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 }
 
+// Started at login with --hidden: sharing runs in the menu bar, no window until asked.
+const startHidden = process.argv.includes('--hidden')
+let sharing = false
+let tray: Tray | null = null
+
 void app.whenReady().then(async () => {
   lockDownNetwork()
   // Loaded in parallel with the window so startup stays fast.
   const shellReady = loadShellPath(exec)
+  const userData = app.getPath('userData')
 
   // Claude Code must prove it honours the turn limit before it may read a folder.
   let core: Core | null = null
-  const guard = new TurnLimitGuard(join(app.getPath('userData'), 'claude-guard.json'), exec, (s) => core?.streams.emit('guard:changed', s))
+  const guard = new TurnLimitGuard(join(userData, 'claude-guard.json'), exec, (s) => core?.streams.emit('guard:changed', s))
   core = createCore({
-    userData: app.getPath('userData'),
+    userData,
     backend: ptyBackend,
     // Plain pages are served by Revive's own tiny server, run by Electron in Node mode.
     staticServer: { file: process.execPath, args: [join(import.meta.dirname, 'static-server.js')], env: { ELECTRON_RUN_AS_NODE: '1' } },
@@ -103,10 +126,9 @@ void app.whenReady().then(async () => {
     const path = await saveShot(await c.workspace.current(), projectId, png)
     if (path) c.bus.emit({ type: 'shot.captured', projectId, path })
   })
-  handleAssetProtocol(() => c.workspace.projectIds())
 
-  // Every method comes from the contract registry, for IPC and the dev WebSocket alike.
-  const handlers = createHandlers(c, {
+  // This computer's core, for its own window and for paired devices; every change goes in the action log.
+  const coreHandlers = createHandlers(c, {
     pickFolder: async (defaultPath) => {
       const options = { properties: ['openDirectory' as const], defaultPath }
       const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options)
@@ -124,27 +146,107 @@ void app.whenReady().then(async () => {
   })
   // Outputs are checked against the contract too, except in the packaged app.
   const checkOutputs = !app.isPackaged
-  registerIpc({ ipcMain, handlers, streams: c.streams, hub: c.hub, target: () => mainWindow?.webContents ?? null, checkOutputs })
 
-  // Development only: the same contract over a WebSocket on 127.0.0.1, with a token printed once.
-  // No UI shows it; pairing and device tokens are M7.
-  const devWs =
-    process.env['REVIVE_DEV_WS'] === '1'
-      ? await startDevWsServer({
-          handlers,
-          streams: c.streams,
-          hub: c.hub,
-          assets: () => c.workspace.projectIds(),
-          port: Number(process.env['REVIVE_DEV_WS_PORT'] ?? 0) || undefined,
-          checkOutputs
-        })
-      : null
-  if (devWs) process.stderr.write(`[revive] dev WebSocket: ${devWs.url} token=${devWs.token}\n`)
+  // What this computer's window hears, from whichever side is doing the work.
+  const out = new ServerStreams()
+  const log = new ActionLog(join(userData, 'action-log.jsonl'))
+  const logged = withActionLog(coreHandlers, log)
 
-  createWindow(preview)
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(preview)
+  let lastMode: 'local' | 'client' = 'local'
+  let router: AppRouter | null = null
+  const client = new ClientService({
+    userData,
+    secrets: safeStorageSecretStore,
+    events: {
+      stream: (stream, payload) => router?.fromHost(stream, payload),
+      status: (status) => {
+        out.emit('client:status', status)
+        // Local ↔ Host: the window starts over, so nothing from the other side lingers.
+        if (client.mode !== lastMode) {
+          lastMode = client.mode
+          mainWindow?.webContents.reload()
+        }
+      }
+    }
   })
+
+  let awake: number | null = null
+  const host = new HostService({
+    userData,
+    core: c,
+    handlers: logged,
+    out,
+    log,
+    platform: {
+      hostName: computerName(),
+      exec,
+      keepAwake: (on) => {
+        if (on && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension')
+        if (!on && awake !== null) {
+          powerSaveBlocker.stop(awake)
+          awake = null
+        }
+      },
+      loginItem: {
+        get: () => app.getLoginItemSettings().openAtLogin,
+        set: (on) => app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] })
+      },
+      sharingChanged: (on) => {
+        sharing = on
+        updateTray(on)
+      }
+    },
+    checkOutputs
+  })
+  router = new AppRouter(out, c, logged, withActionLog(createAppHandlers(host, client), log), client)
+  const r = router
+
+  handleAssetProtocol(
+    () => c.workspace.projectIds(),
+    () => (client.mode === 'client' ? (path) => client.asset(path) : null)
+  )
+  registerIpc({ ipcMain, handlers: r.handlers(), streams: r.out, sessions: r.sessions(), target: () => mainWindow?.webContents ?? null, checkOutputs })
+
+  // Back to the Host this app was paired with, or back to sharing this computer, as before.
+  client.resume()
+  lastMode = client.mode
+  await host.init()
+  powerMonitor.on('resume', () => client.wake())
+  powerMonitor.on('unlock-screen', () => client.wake())
+
+  const openWindow = () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    } else {
+      createWindow(preview)
+    }
+  }
+  function updateTray(on: boolean): void {
+    if (!on) {
+      tray?.destroy()
+      tray = null
+      return
+    }
+    if (!tray) {
+      const icon = nativeImage.createFromPath(join(import.meta.dirname, '../../resources/trayTemplate.png'))
+      icon.setTemplateImage(true)
+      tray = new Tray(icon)
+      tray.setToolTip('Revive is sharing this computer')
+    }
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Open Revive', click: openWindow },
+        { label: 'Pause sharing', click: () => void host.setSharing(false) },
+        { type: 'separator' },
+        { label: 'Quit Revive', click: () => app.quit() }
+      ])
+    )
+  }
+
+  if (!(startHidden && sharing)) createWindow(preview)
+  app.on('activate', openWindow)
 
   // Nothing Revive started may outlive it. Wait (briefly) for every process group to stop.
   let quitting = false
@@ -154,8 +256,12 @@ void app.whenReady().then(async () => {
     event.preventDefault()
     c.scans.abortAll()
     killAllTasks()
-    void Promise.race([Promise.all([c.runner.stopAll(), devWs?.close()]), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
+    client.close()
+    void Promise.race([Promise.all([c.runner.stopAll(), host.stop()]), new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit())
   })
 })
 
-app.on('window-all-closed', () => app.quit())
+// While this computer is shared, closing the window leaves Revive running in the menu bar.
+app.on('window-all-closed', () => {
+  if (!sharing) app.quit()
+})

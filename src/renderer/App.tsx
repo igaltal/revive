@@ -12,6 +12,10 @@ import { ScanView } from '@/screens/ScanView'
 import { WelcomeLanguage } from '@/screens/WelcomeLanguage'
 import { GuardBlocked } from '@/screens/GuardBlocked'
 import { useGuard } from '@/state/guard'
+import { useClient } from '@/state/client'
+import { useHostStatus } from '@/state/host'
+import { PairingRequests } from '@/components/host'
+import { ClientConnecting, ClientRejected } from '@/screens/ClientScreens'
 import { Onboarding } from '@/screens/onboarding/Onboarding'
 import { FolderStep } from '@/screens/onboarding/FolderStep'
 import { PrereqStep } from '@/screens/onboarding/PrereqStep'
@@ -19,6 +23,18 @@ import { PrereqStep } from '@/screens/onboarding/PrereqStep'
 type AppRoute = { name: Route } | { name: 'folder' } | { name: 'prereq' } | { name: 'project'; id: string }
 
 export function App(): ReactNode {
+  const { host } = useHostStatus()
+  // A device asking to connect is answered from any screen on the Host.
+  return (
+    <>
+      <Screens />
+      <PairingRequests host={host} />
+    </>
+  )
+}
+
+function Screens(): ReactNode {
+  const client = useClient()
   const { settings, loaded } = useSettings()
   const { scan, reload } = useProjects()
   const { tx } = useT()
@@ -30,7 +46,9 @@ export function App(): ReactNode {
     scrollRoot.current?.scrollTo?.({ top: 0 })
   }, [route])
 
-  if (!loaded) return null
+  // Working on another computer: say so while it can't be reached, and when it no longer allows this one.
+  if (client.state === 'rejected') return <ClientRejected />
+  if (!loaded) return client.host ? <ClientConnecting /> : null
   if (settings.uiLanguage === null) return <WelcomeLanguage />
   // Loud and first: a Claude Code that ignores the turn limit may not read anything.
   if (guard?.state === 'failed') return <GuardBlocked guard={guard} onRecheck={recheck} />

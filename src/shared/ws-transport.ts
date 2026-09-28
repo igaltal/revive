@@ -1,6 +1,7 @@
 import { capabilitiesFor, type Capabilities, type ClientStreamName, type ClientStreamPayload, type MethodName, type ServerStreamName } from './contract'
 import { BaseTransport, RemoteError } from './transport'
-import { decodeOutputFrame, WS_PROTOCOL, WS_TOKEN_PREFIX, type ClientMessage, type ServerMessage } from './ws-protocol'
+import { CLOSE_REVOKED, decodeOutputFrame, WS_PROTOCOL, WS_TOKEN_PREFIX, type ClientMessage, type ServerMessage } from './ws-protocol'
+import type { SessionChunk } from './contract'
 
 export interface WsTransportOptions {
   /** ws://127.0.0.1:<port>/ws */
@@ -11,6 +12,8 @@ export interface WsTransportOptions {
   /** Defaults to the global WebSocket (browsers, Node 22+). */
   WebSocket?: typeof WebSocket
   retry?: { minMs: number; maxMs: number }
+  /** How often to check the connection is alive; a silent one is replaced. */
+  heartbeatMs?: number
 }
 
 export { RemoteError }
@@ -32,6 +35,11 @@ export class WsTransport extends BaseTransport {
   private opened = false
   private delay: number
   private firstOpen: { resolve: () => void; reject: (e: Error) => void } | null = null
+  private rejected = false
+  private lastHeard = 0
+  private heartbeat: ReturnType<typeof setInterval> | null = null
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private allHandler: ((chunk: SessionChunk) => void) | null = null
 
   constructor(private readonly opts: WsTransportOptions) {
     super()
@@ -48,8 +56,44 @@ export class WsTransport extends BaseTransport {
 
   close(): void {
     this.closed = true
+    this.stopTimers()
     this.socket?.close()
     this.rejectPending('closed')
+  }
+
+  /**
+   * Every session's output, each from wherever it is when first seen. For a
+   * client that forwards output on (the desktop app in client mode).
+   */
+  watchAll(handler: (chunk: SessionChunk) => void): void {
+    this.allHandler = handler
+    this.write({ t: 'watchAll' })
+  }
+
+  /** After waking from sleep or a network change: don't wait for the backoff. */
+  reconnectNow(): void {
+    if (this.closed || this.rejected) return
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+      this.open()
+    } else if (this.socket?.readyState === 1) {
+      // It may look open while the other side is long gone: check now.
+      this.write({ t: 'ping' })
+    }
+  }
+
+  get state(): 'open' | 'connecting' | 'rejected' | 'closed' {
+    if (this.closed) return 'closed'
+    if (this.rejected) return 'rejected'
+    return this.socket?.readyState === 1 ? 'open' : 'connecting'
+  }
+
+  private stopTimers(): void {
+    if (this.heartbeat) clearInterval(this.heartbeat)
+    if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.heartbeat = null
+    this.retryTimer = null
   }
 
   capabilities(): Capabilities {
@@ -62,6 +106,8 @@ export class WsTransport extends BaseTransport {
   }
 
   protected call(method: MethodName, input: unknown): Promise<unknown> {
+    // Closed for good (by the caller, or because the Host refused this device): fail now, never queue.
+    if (this.closed) return Promise.reject(new RemoteError(this.rejected ? 'rejected' : 'closed', this.rejected ? 'This device is no longer allowed to connect' : 'Connection closed'))
     const id = this.nextId++
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject, sent: false })
@@ -111,6 +157,15 @@ export class WsTransport extends BaseTransport {
 
     ws.onopen = () => {
       this.delay = this.opts.retry?.minMs ?? 250
+      this.lastHeard = Date.now()
+      // A connection that goes quiet (a sleeping laptop, a dropped Wi-Fi) is replaced.
+      const every = this.opts.heartbeatMs ?? 10_000
+      if (this.heartbeat) clearInterval(this.heartbeat)
+      this.heartbeat = setInterval(() => {
+        if (Date.now() - this.lastHeard > every * 2.5) ws.close()
+        else if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'ping' }))
+      }, every)
+      if (this.allHandler) ws.send(JSON.stringify({ t: 'watchAll' }))
       const queued = this.outbox
       this.outbox = []
       for (const { text, callId } of queued) {
@@ -133,6 +188,7 @@ export class WsTransport extends BaseTransport {
     }
 
     ws.onmessage = (ev: MessageEvent) => {
+      this.lastHeard = Date.now()
       if (typeof ev.data === 'string') {
         let msg: ServerMessage
         try {
@@ -151,27 +207,69 @@ export class WsTransport extends BaseTransport {
         }
       } else {
         const { header, data } = decodeOutputFrame(ev.data as ArrayBuffer)
-        this.receiveChunk({ sessionId: header.s, offset: header.o, data, ...(header.tr ? { truncated: true } : {}) })
+        const chunk: SessionChunk = { sessionId: header.s, offset: header.o, data, ...(header.tr ? { truncated: true } : {}) }
+        this.allHandler?.(chunk)
+        this.receiveChunk(chunk)
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (ev: CloseEvent) => {
       if (this.socket !== ws) return
       this.socket = null
+      if (this.heartbeat) clearInterval(this.heartbeat)
+      this.heartbeat = null
       // Calls that were sent may or may not have run: their callers decide what to do.
       // Calls still in the outbox haven't run, and go out on the next open.
       this.rejectPending('disconnected', true)
       if (this.closed) return
+      if (ev.code === CLOSE_REVOKED) return this.reject()
       if (!this.opened) {
         this.firstOpen?.reject(new RemoteError('unreachable', `Couldn't connect to ${this.opts.url}`))
         this.firstOpen = null
         return
       }
       this.setConnection('reconnecting')
-      const wait = this.delay
-      this.delay = Math.min(this.delay * 2, this.opts.retry?.maxMs ?? 5000)
-      setTimeout(() => !this.closed && this.open(), wait)
+      // A refused reconnect may mean the device was revoked while away: ask, and stop if so.
+      void this.stillAllowed().then((allowed) => {
+        if (allowed === false) return this.reject()
+        if (this.closed) return
+        const wait = this.delay
+        this.delay = Math.min(this.delay * 2, this.opts.retry?.maxMs ?? 5000)
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null
+          if (!this.closed) this.open()
+        }, wait)
+      })
     }
+  }
+
+  /**
+   * Asks the Host whether this device may still connect: false only when it
+   * answered no (revoked), null when it couldn't be reached. Stops for good on false.
+   */
+  async checkAllowed(): Promise<boolean | null> {
+    const r = await this.stillAllowed()
+    if (r === false) this.reject()
+    return r
+  }
+
+  /** false only when the Host answered and said this token is no good. */
+  private async stillAllowed(): Promise<boolean | null> {
+    try {
+      const res = await fetch(`${this.opts.httpUrl}/whoami`, { headers: { authorization: `Bearer ${this.opts.token}` }, signal: AbortSignal.timeout(3000) })
+      return res.status === 401 ? false : true
+    } catch {
+      return null
+    }
+  }
+
+  private reject(): void {
+    this.rejected = true
+    this.closed = true
+    this.outbox = []
+    this.stopTimers()
+    this.rejectPending('rejected')
+    this.setConnection('rejected')
   }
 
   private rejectPending(code: string, onlySent = false): void {

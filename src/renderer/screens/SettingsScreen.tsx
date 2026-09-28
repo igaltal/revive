@@ -6,6 +6,11 @@ import { PageHeader } from '@/components/PageHeader'
 import { OptionCards } from '@/components/OptionCards'
 import { TechnicalDetails } from '@/components/TechnicalDetails'
 import type { Settings } from '@shared/settings'
+import { transport } from '@/transport'
+import { useClient } from '@/state/client'
+import { useHostStatus } from '@/state/host'
+import { ConnectForm, SharingSection } from '@/components/host'
+import { Button } from '@/components/Button'
 
 function Section({ title, hint, children }: { title: ReactNode; hint: ReactNode; children: ReactNode }) {
   return (
@@ -23,6 +28,9 @@ export function SettingsScreen(): ReactNode {
   const { t, tx } = useT()
   const { settings, update } = useSettings()
   const ui = settings.uiLanguage ?? 'en'
+  const client = useClient()
+  const { host } = useHostStatus()
+  const caps = transport.capabilities()
 
   return (
     <div className="max-w-3xl">
@@ -101,6 +109,26 @@ export function SettingsScreen(): ReactNode {
       </Section>
 
       <p className="pt-4 text-xs text-muted">{tx('settings.version', { version: __APP_VERSION__ })}</p>
+      {caps.hostControls && host ? (
+        <Section title={tx('host.share.title')} hint={tx('host.share.hint', { name: host.hostName })}>
+          <SharingSection host={host} />
+        </Section>
+      ) : null}
+
+      <Section title={tx('client.title')} hint={tx('client.hint')}>
+        {client.host && client.state !== 'pairing' && client.state !== 'waiting' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3" data-testid="client-connected">
+            <p className="text-[15px] text-ink">{tx('client.connectedTo', { host: client.host.name })}</p>
+            <Button variant="secondary" data-testid="client-disconnect" onClick={() => void transport.invoke('client:disconnect')}>
+              {tx('client.disconnect')}
+            </Button>
+          </div>
+        ) : host?.sharing ? (
+          <p className="text-[15px] text-muted">{tx('client.notWhileSharing')}</p>
+        ) : (
+          <ConnectForm />
+        )}
+      </Section>
     </div>
   )
 }
