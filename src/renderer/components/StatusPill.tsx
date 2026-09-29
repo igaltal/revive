@@ -10,7 +10,8 @@ const styles: Record<StatusKind | 'busy', { dot: string; text: string }> = {
   running: { dot: 'bg-running', text: 'text-running' },
   verified: { dot: 'bg-verified', text: 'text-verified' },
   broken: { dot: 'bg-broken', text: 'text-broken' },
-  unknown: { dot: 'bg-attention', text: 'text-attention' },
+  // Not checked yet is neutral: nothing is wrong, it just hasn't been tried.
+  unknown: { dot: 'bg-idle', text: 'text-muted' },
   busy: { dot: 'bg-running animate-pulse', text: 'text-running' }
 }
 

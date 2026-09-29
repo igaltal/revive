@@ -78,6 +78,8 @@ function hash(s: string): number {
 }
 
 export interface TileLook {
+  from: string
+  to: string
   icon: string
   iconIndex: number
   colorIndex: number
@@ -93,6 +95,8 @@ export function tileLook(projectId: string, choice?: TileChoice): TileLook {
   const colorIndex = choice?.color ?? (h >>> 8) % TILE_COLOR_COUNT
   const c = TILE_COLORS[colorIndex]!
   return {
+    from: c.from,
+    to: c.to,
     icon: TILE_ICONS[iconIndex]!,
     iconIndex,
     colorIndex,

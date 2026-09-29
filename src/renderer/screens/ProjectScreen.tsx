@@ -128,7 +128,7 @@ export function ProjectScreen({ projectId, onBack, onOpenTerminal }: { projectId
         </div>
       ) : (
         <div className="overflow-hidden rounded-[12px] border border-border bg-card">
-          <ProjectPicture project={project} src={shots[projectId]} className={cx('h-72', status.kind === 'busy' && 'opacity-60')} />
+          <ProjectPicture project={project} src={shots[projectId]} className={cx('h-72', status.kind === 'busy' && 'opacity-60')} emptyClassName={cx('h-40', status.kind === 'busy' && 'opacity-60')} />
           {status.kind === 'running' ? (
             // No live view on this client: the latest picture, and where it runs.
             <div className="flex flex-col gap-2 px-5 py-3" data-testid="preview-remote">

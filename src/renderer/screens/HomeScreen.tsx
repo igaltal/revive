@@ -10,7 +10,7 @@ import { useAppearance } from '@/state/appearance'
 import { AGENT_NAMES, STATUS_DOT, STATUS_TEXT, tileStatus, useAllSessions, useVitals, type LiveSession, type TileStatusKind } from '@/state/live'
 import { transport } from '@/transport'
 import { useOverlay } from '@/state/overlay'
-import { tileLook } from '@/theme/tiles'
+import { TileIcon } from '@/components/TileIcon'
 import { AgentProblem, type AgentProblemInfo } from '@/components/AgentProblem'
 import { BrushIcon, ChipIcon, LockIcon, SendIcon, SparkIcon, TerminalIcon, UptimeIcon } from '@/components/icons'
 import { useNarrow } from '@/components/media'
@@ -265,23 +265,6 @@ function CommandBar({ projects, onOpenTerminal, compact }: { projects: Project[]
 
 // ---------- project tiles ----------
 
-export function TileIcon({ projectId, size, choice }: { projectId: string; size: number; choice?: Appearance['tiles'][string] }): ReactNode {
-  const { look } = useAppearance()
-  const tile = tileLook(projectId, choice ?? look.tiles[projectId])
-  return (
-    <span
-      aria-hidden
-      data-icon={tile.iconIndex}
-      data-color={tile.colorIndex}
-      className="flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size, borderRadius: size * 0.29, background: tile.background, color: tile.glyph, boxShadow: `inset 0 1px 0 color-mix(in oklab, ${tile.glyph} 35%, transparent), 0 8px 20px ${tile.shadow}` }}
-    >
-      <svg width={size / 2} height={size / 2} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-        <path d={tile.icon} />
-      </svg>
-    </span>
-  )
-}
 
 const DENSITY = {
   compact: { icon: 44, cols: 'grid-cols-10', pad: 'px-2 pt-3 pb-2.5', name: 'text-sm' },
@@ -656,3 +639,5 @@ export function HomeScreen({ onOpenProject, onOpenTerminal, onCustomize }: HomeP
     </div>
   )
 }
+
+export { TileIcon }

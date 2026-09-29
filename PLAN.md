@@ -977,3 +977,68 @@ No UI changes beyond the requested "Update ready" note. Version **0.11.0**.
   - a real update between two different signed versions;
   - "Move to Applications" clicked for real (it would move this build into your `/Applications`);
   - looking at the DMG window's artwork on screen. Finder opened it at the designed 660×420 with its title, but this terminal can't take screenshots.
+
+### M12: done (2026-09-29): folder reading rebuilt, interface polish
+
+**What was wrong.**
+- **Your real reading never finished.** On Sep 28 Revive read `~/Projects`; the log shows it and `~/Projects/.revive` has the traces. It never got past its first step, saving a version of the whole folder: it wrote 1.3 GB, recorded no version, and left a stuck `index.lock`.
+- **iCloud:** `~/Projects` is synced by iCloud Drive, and opening a file iCloud has offloaded downloads it first. One offloaded `pyproject.toml` alone stalled a folder walk for two minutes.
+- **The old design:** a single long Claude session walked the whole folder with file tools, with a 10-minute and 200-turn limit.
+
+**The new reading** (`scanner/detect.ts`, `scanner/scan.ts`)
+1. **Finding projects, on this computer, no AI.**
+   - A folder with a `package.json`, `pyproject.toml`, `requirements.txt`, `manage.py`, `Cargo.toml`, `go.mod`, `index.html`, etc. is a project; nothing inside it is looked at as another one.
+   - From its files it gets:
+     - the kind (from its dependencies);
+     - how to install and run it (package manager from the lockfile, the dev/start script, Django, Streamlit);
+     - the port (script flags, vite/astro config, the framework's default);
+     - the keys it uses. These are names only, from code (`process.env.X`, `import.meta.env.X`, `os.getenv`…) and from `.env.example` files; a key is required unless the code has a fallback.
+   - It skips dependencies, build output and Python environments, including oddly named ones, found by `pyvenv.cfg`.
+   - It never opens secret files (`.env`, keys, certificates, credentials).
+   - It never opens a file that's only in iCloud (a size but no disk blocks), and a folder that takes over 2 s to list is skipped.
+   - **All of `~/Projects` in 5.7 s: 151 projects.**
+2. **Only what changed.** Each project has a fingerprint (the paths, sizes and times of its files) in `.revive/scan-state.json`. An unchanged project keeps what was said about it, with no call.
+3. **Claude only for words.**
+   - For new or changed projects, Claude gets a summary Revive built: README, page title and text, file tree, scripts, dependencies and key names, all masked.
+   - It answers with a name, one sentence in English and one in natural Hebrew, what each key is for, and up to three notes.
+   - No tools and no files: an empty working folder, and Revive's own short system prompt instead of Claude Code's (base cost per call $0.009 → $0.001).
+   - No extended thinking: measured 4× faster and half the cost for the same answer.
+   - Four projects per call, three calls at once.
+   - A failed call leaves its projects with what they had, and they're tried again next time. Signed out, missing or cancelled stops the reading before it spends anything.
+4. **Merge and write** `.revive/manifest.json`, keeping what the person set by hand (locked fields, checked status) as before.
+
+**Real run, on 8 of your projects** (a copy, without dependencies or `.env` files): 35 s, $0.18, all 8 described accurately, in natural Hebrew, with real names (JobBoard, Camp Site Hub), the right commands and ports, and key purposes in plain words.
+- **Haiku with thinking:** it timed out on a batch.
+- **Haiku with thinking off:** it works, at about half Sonnet's price, but its Hebrew is plainer, with a spelling mistake.
+- **The default is now Sonnet** (about 2 cents a project). Settings explain the choice. **Your own setting is still Haiku,** the old default; switch it in Settings for the better descriptions.
+
+**Versions.**
+- The reading no longer saves a version first: Claude can't touch the folder, and Revive writes only `.revive/`.
+- A restore point, "When Revive read the folder", is saved after the reading, in the background, and never makes the reading fail.
+- Versions leave out files that are only in iCloud (git would download them), through a pathspec file so any number of exclusions fits.
+- A save lock older than 10 minutes is cleared.
+
+**Progress screen.**
+- Every project by name and path as it's found, then its own state: waiting, describing, done, unchanged, or "try again later".
+- A real progress bar; counts found, described and unchanged; the cost so far and the estimate.
+- A line for files only in iCloud.
+- The result says how many were described, how many were unchanged, and which couldn't be described.
+
+**Interface polish.**
+- A project without a picture yet shows its own icon and color (the same as on Home) in a short strip, instead of a tall gray box with a letter. The project page does the same.
+- "Not checked yet" is neutral gray, not a warning.
+- On phones, the gallery is a compact list (icon, name, two lines, status and one button): 3 or more projects per screen instead of about one.
+- The connection pill is one line on phones.
+
+**Tests.**
+- New:
+  - detection (kinds, commands, ports, keys, secrets never opened, Python environments, fingerprints, cloud-only files);
+  - the pipeline (words only from summaries, unchanged projects skipped, failures retried, signed out stops, cancel);
+  - the Claude call (no tools, own prompt, thinking off, answer shape, errors);
+  - versions (cloud-only files left out, stale lock cleared);
+  - the reading screen.
+- Existing: 304 unit, 5 tmux and 12 e2e tests pass.
+
+**Notes for you**
+- `~/Projects/.revive/git` holds 1.3 GB left by the interrupted save, with no version pointing to it. It's safe to reclaim with `git --git-dir ~/Projects/.revive/git gc --prune=now`. I didn't run it, because it's your disk.
+- Reading all of `~/Projects` for the first time would describe 151 projects, about $3 with Sonnet. After that, only changed projects cost anything.

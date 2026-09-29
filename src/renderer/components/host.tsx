@@ -398,12 +398,17 @@ export function ConnectionPill(): ReactNode {
   if (!client.host || client.state === 'local' || client.state === 'pairing' || client.state === 'waiting') return null
   const state = client.state === 'open' ? 'open' : client.state === 'rejected' ? 'rejected' : 'reconnecting'
   return (
-    <div className="flex flex-col gap-0.5 rounded-[10px] border border-border bg-card px-3 py-2" data-testid="connection-pill" data-state={state}>
-      <span className="flex items-center gap-2 text-sm font-medium text-ink">
-        <span className={cx('size-2 rounded-full', state === 'open' ? 'bg-running' : state === 'rejected' ? 'bg-broken' : 'animate-pulse bg-attention')} aria-hidden />
-        <bdi>{client.host.name}</bdi>
+    // Two lines in a sidebar; one short line on a phone, where the top of the screen is precious.
+    <div
+      className="flex min-w-0 flex-col gap-0.5 rounded-[10px] border border-border bg-card px-3 py-2 max-[639px]:flex-row max-[639px]:items-center max-[639px]:gap-1.5 max-[639px]:rounded-full max-[639px]:py-1.5"
+      data-testid="connection-pill"
+      data-state={state}
+    >
+      <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+        <span className={cx('size-2 shrink-0 rounded-full', state === 'open' ? 'bg-running' : state === 'rejected' ? 'bg-broken' : 'animate-pulse bg-attention')} aria-hidden />
+        <bdi className="truncate">{client.host.name}</bdi>
       </span>
-      <span className="text-xs text-muted">{tx(`client.pill.${state}`)}</span>
+      <span className="shrink-0 text-xs text-muted">{tx(`client.pill.${state}`)}</span>
     </div>
   )
 }
