@@ -40,7 +40,7 @@ test('first run: language, computer check, folder, then straight to My projects 
   await again.close()
 })
 
-test('read the folder: saved version first, progress, gallery, nothing outside .revive changed', async () => {
+test('read the folder: every project by name, gallery, nothing outside .revive changed, a restore point after', async () => {
   const { readFileSync, readdirSync, statSync, existsSync } = await import('node:fs')
   const { join, relative } = await import('node:path')
   const userData = freshUserData()
@@ -70,8 +70,9 @@ test('read the folder: saved version first, progress, gallery, nothing outside .
 
   await win.getByTestId('scan-start').click()
   await expect(win.getByTestId('scan-badge')).toHaveText('Reading only')
-  await expect(win.getByTestId('scan-phase')).toHaveAttribute('data-phase', 'reading')
+  await expect(win.getByTestId('scan-phase')).toHaveAttribute('data-phase', 'understanding')
   await expect(win.getByTestId('scan-found')).toContainText('habit-counter')
+  await expect(win.getByTestId('scan-project')).toHaveCount(2)
 
   await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
   await expect(win.getByTestId('project-card')).toHaveCount(2)
@@ -79,8 +80,9 @@ test('read the folder: saved version first, progress, gallery, nothing outside .
 
   expect(snapshot()).toEqual(before)
   expect(existsSync(join(folder, '.revive/manifest.json'))).toBe(true)
-  const versions = JSON.parse(readFileSync(join(folder, '.revive/versions.json'), 'utf8'))
-  expect(versions[0].kind).toBe('scan')
+  expect(existsSync(join(folder, '.revive/scan-state.json'))).toBe(true)
+  // The restore point is saved after the reading, in the background.
+  await expect.poll(() => (existsSync(join(folder, '.revive/versions.json')) ? JSON.parse(readFileSync(join(folder, '.revive/versions.json'), 'utf8'))[0]?.kind : null), { timeout: 15_000 }).toBe('scan')
   await app.close()
 
   // Next launch: the gallery is there straight away.
@@ -117,7 +119,7 @@ test('start a project: live preview, picture, status saved, stop, and nothing ou
   await win.getByTestId('scan-start').click()
   await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
   // Indexing and descriptions both counted: $0.01 + $0.02.
-  await expect(win.getByTestId('scan-cost')).toContainText('$0.03')
+  await expect(win.getByTestId('scan-cost')).toContainText('$0.01')
 
   // One button: "Check if it works" starts the plain-HTML bakery site and opens its page.
   await win.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
@@ -188,6 +190,8 @@ test('go back to a saved version and undo it: preview hidden under dialogs, proj
   await win.getByTestId('folder-pick').click()
   await win.getByTestId('scan-start').click()
   await expect(win.getByTestId('scan-result')).toContainText('Found 2 projects.', { timeout: 30_000 })
+  // The restore point from the reading is saved in the background: wait for it before changing anything.
+  await expect.poll(() => existsSync(join(folder, '.revive/versions.json')), { timeout: 15_000 }).toBe(true)
 
   // Start the bakery, then change it the way an agent might.
   await win.locator('[data-project="bakery-site"]').getByTestId('card-action').click()
@@ -229,7 +233,7 @@ test('go back to a saved version and undo it: preview hidden under dialogs, proj
   // History: plain titles, newest first; Undo brings the agent's change back.
   await win.getByTestId('nav-history').click()
   await expect(win.getByTestId('version-title').first()).toContainText('Before going back to the version from')
-  await expect(win.getByTestId('version-title').last()).toHaveText('Before reading the folder')
+  await expect(win.getByTestId('version-title').last()).toHaveText('When Revive read the folder')
   await win.getByTestId('restore-undo').click()
   await expect(win.getByTestId('restore-done')).toContainText('Undone.')
   expect(readFileSync(page, 'utf8')).toBe('<h1>Changed by an agent</h1>')

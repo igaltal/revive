@@ -1,7 +1,6 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { Manifest } from '@shared/manifest'
 import { createCore, SKIPPED_GUARD } from '../app/core'
 import { fakeAdapter } from '../scanner/fake-adapter'
 import { childBackend } from '../services/sessions/child-backend'
@@ -48,19 +47,17 @@ export function makeCore(opts: { backend?: import('../services/sessions/backend'
   const root = mkdtempSync(join(tmpdir(), 'revive-parity-'))
   const folder = join(root, 'projects')
   cpSync('fixtures/sample-folder', folder, { recursive: true })
-  mkdirSync(join(folder, 'noisy'))
-  writeFileSync(join(folder, 'noisy/noisy.cjs'), NOISY)
-  mkdirSync(join(folder, 'echo'))
-  writeFileSync(join(folder, 'echo/README.txt'), 'echo')
-  const manifest = JSON.parse(readFileSync('fixtures/sample-folder.manifest.json', 'utf8')) as Manifest
-  const base = manifest.projects[0]!
-  manifest.projects.push(
-    { ...structuredClone(base), id: 'noisy', name: 'Noisy', path: 'noisy', run: { ...base.run, dev: `${NODE} noisy.cjs` } },
-    { ...structuredClone(base), id: 'flood', name: 'Flood', path: 'noisy', run: { ...base.run, dev: `${NODE} noisy.cjs 70000` } },
-    { ...structuredClone(base), id: 'echo', name: 'Echo', path: 'echo', run: { ...base.run, dev: `${NODE} -e "process.stdin.on('data', (d) => console.log('got:' + d))"` } }
-  )
+  // Real project folders: Revive finds projects from their files (a package.json with a dev script).
+  const project = (dir: string, dev: string, extra: Record<string, string> = {}) => {
+    mkdirSync(join(folder, dir))
+    writeFileSync(join(folder, dir, 'package.json'), JSON.stringify({ name: dir, private: true, scripts: { dev } }))
+    for (const [f, text] of Object.entries(extra)) writeFileSync(join(folder, dir, f), text)
+  }
+  project('noisy', `${NODE} noisy.cjs`, { 'noisy.cjs': NOISY })
+  project('flood', `${NODE} noisy.cjs 70000`, { 'noisy.cjs': NOISY })
+  project('echo', `${NODE} -e "process.stdin.on('data', (d) => console.log('got:' + d))"`)
   const manifestFile = join(root, 'manifest.json')
-  writeFileSync(manifestFile, JSON.stringify(manifest))
+  writeFileSync(manifestFile, readFileSync('fixtures/sample-folder.manifest.json', 'utf8'))
   const core = createCore({
     userData: join(root, 'user-data'),
     backend: opts.backend ?? childBackend,

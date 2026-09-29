@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { copyFile, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { LOCKABLE_FIELDS, manifestJsonSchema, parseManifest, type Manifest, type ParseResult, type Project } from '@shared/manifest'
+import { LOCKABLE_FIELDS, parseManifest, type Manifest, type ParseResult, type Project } from '@shared/manifest'
 import { redact } from '@shared/redact'
 
 export const manifestPath = (folder: string) => join(folder, '.revive', 'manifest.json')
@@ -24,10 +24,6 @@ export async function writeManifest(folder: string, manifest: Manifest): Promise
   const tmp = `${manifestPath(folder)}.tmp`
   await writeFile(tmp, JSON.stringify(parsed.manifest, null, 2) + '\n')
   await rename(tmp, manifestPath(folder))
-}
-
-export async function writeSchema(folder: string): Promise<void> {
-  await writeFile(join(folder, '.revive', 'schema.json'), JSON.stringify(manifestJsonSchema(), null, 2) + '\n')
 }
 
 /** Keeps the last good manifest, so a bad scan can never lose it. */
@@ -127,32 +123,4 @@ export function updateProject(folder: string, projectId: string, change: (p: Pro
   })
 }
 
-/** The inputs for the description step: only what indexing found, for projects whose description isn't locked. */
-export function describeInputs(manifest: Manifest): Array<{ id: string; name: string; stack: string[]; draft: string; notes: string[]; keyPurposes: string[] }> {
-  return manifest.projects
-    .filter((p) => !p.user_locked.includes('description') && !(p.user_locked.includes('description.en') && p.user_locked.includes('description.he')))
-    .map((p) => ({ id: p.id, name: p.name, stack: p.stack, draft: p.description.en, notes: p.notes.slice(0, 5), keyPurposes: p.keys.map((k) => k.purpose.en) }))
-}
 
-/**
- * Puts the description step's sentences in place. Only description.en and
- * description.he change, never a locked one, and never for an unknown id.
- */
-export function applyDescriptions(manifest: Manifest, descriptions: Array<{ id: string; en: string; he: string }>): Manifest {
-  const byId = new Map(descriptions.map((d) => [d.id, d]))
-  return {
-    ...manifest,
-    projects: manifest.projects.map((p) => {
-      const d = byId.get(p.id)
-      if (!d || p.user_locked.includes('description')) return p
-      const keep = (lang: 'en' | 'he') => p.user_locked.includes(`description.${lang}`) || !d[lang].trim()
-      return {
-        ...p,
-        description: {
-          en: keep('en') ? p.description.en : redact(d.en.trim()),
-          he: keep('he') ? p.description.he : redact(d.he.trim())
-        }
-      }
-    })
-  }
-}

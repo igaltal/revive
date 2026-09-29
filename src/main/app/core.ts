@@ -80,12 +80,14 @@ export function createCore(opts: CoreOptions): Core {
     opts.adapter,
     {
       progress: (p) => streams.emit('scan:progress', p),
-      done: (d) => streams.emit('scan:done', d),
-      versionSaved: (v) => versions.announce(v)
+      done: (d) => {
+        streams.emit('scan:done', d)
+        // A restore point of the folder as it was read, saved after the reading (it never slows it down).
+        if (d.ok) void versions.saveAfterReading()
+      }
     },
-    // Nothing running, and no restore half done, while Claude reads the folder.
+    // Never read a folder while a restore is half done. (Running projects keep running: a reading changes no files.)
     async () => {
-      await runner.stopAll()
       await versions.whenIdle()
     }
   )

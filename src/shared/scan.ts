@@ -1,15 +1,37 @@
 import type { Manifest } from './manifest'
 
-export type ScanPhase = 'saving' | 'reading' | 'checking' | 'describing' | 'done'
+/**
+ * Reading a folder: save a version, find the projects (on this computer, no
+ * AI), put the new or changed ones into plain words (Claude, no tools, a
+ * summary only), check nothing else changed.
+ */
+export type ScanPhase = 'saving' | 'finding' | 'understanding' | 'checking' | 'done'
+
+/** Each project's own progress through a reading. */
+export type ScanProjectState = 'found' | 'waiting' | 'reading' | 'done' | 'unchanged' | 'failed'
+
+export interface ScanProjectProgress {
+  id: string
+  name: string
+  /** Relative to the chosen folder. */
+  path: string
+  state: ScanProjectState
+  /** Files only in iCloud: not opened, not downloaded. */
+  cloudOnly: number
+}
 
 export interface ScanProgress {
   scanId: string
   phase: ScanPhase
-  filesRead: number
-  /** Project folders found so far (relative), in order of discovery. */
-  projectsFound: string[]
-  /** The most recent files read (relative), newest last. */
-  recent: string[]
+  /** Projects in the order they were found. */
+  projects: ScanProjectProgress[]
+  /** How many need Claude this time (new or changed); the rest are unchanged. */
+  toUnderstand: number
+  understood: number
+  /** What Claude reported so far. */
+  costUsd: number | null
+  /** Before Claude starts: roughly what this reading will cost. */
+  estimateUsd: number | null
 }
 
 export type ScanErrorCode =
@@ -38,14 +60,29 @@ export interface ScanError {
 
 /** What each Claude call in one reading cost, as Claude reported it. */
 export interface ScanCostPart {
-  step: 'index' | 'describe'
+  step: 'understand'
   model: string
   usd: number | null
 }
 
+/** A reading's outcome, for the one sentence after it. */
+export interface ScanSummary {
+  found: number
+  /** Put into words this time. */
+  understood: number
+  /** Unchanged since last time: kept as they were, no cost. */
+  unchanged: number
+  /** Couldn't be put into words this time (kept what was known; tried again next time). */
+  failed: string[]
+  /** Projects with files only in iCloud (not opened). */
+  withCloudOnly: number
+  /** Folders skipped because they didn't answer in time. */
+  slowFolders: number
+}
+
 /** `costUsd` is the total of all parts that reported a cost. */
 export type ScanDone =
-  | { scanId: string; ok: true; manifest: Manifest; costUsd: number | null; costParts: ScanCostPart[]; versionId: string }
+  | { scanId: string; ok: true; manifest: Manifest; costUsd: number | null; costParts: ScanCostPart[]; summary: ScanSummary }
   | { scanId: string; ok: false; error: ScanError; costUsd: number | null; costParts: ScanCostPart[] }
 
 export function totalCost(parts: ScanCostPart[]): number | null {
@@ -53,15 +90,14 @@ export function totalCost(parts: ScanCostPart[]): number | null {
   return known.length ? known.reduce((sum, p) => sum + p.usd!, 0) : null
 }
 
-/** Hard limits for one scan. */
-export const SCAN_LIMITS = { maxTurns: 200, maxBudgetUsd: 3, timeoutMs: 10 * 60_000 } as const
+/** Limits for each understanding call (a few projects, no tools). */
+export const UNDERSTAND_LIMITS = { maxTurns: 3, maxBudgetUsd: 0.5, timeoutMs: 2 * 60_000 } as const
+/** Projects per call, and calls at once. */
+export const UNDERSTAND_BATCH = { size: 4, parallel: 3 } as const
+/** Measured on real projects, thinking off (Sonnet about 2 cents each, Haiku about 1), for the estimate before a reading. */
+export const COST_PER_PROJECT_USD: Record<string, number> = { haiku: 0.01, sonnet: 0.02, opus: 0.08 }
 
-/**
- * After indexing, one short call writes the plain descriptions. It has no
- * tools at all: it sees only what indexing found and answers in JSON.
- */
-export const DESCRIBE_MODEL = 'sonnet'
-export const DESCRIBE_LIMITS = { maxTurns: 3, maxBudgetUsd: 0.5, timeoutMs: 2 * 60_000 } as const
-
-/** Files that mark the root of a project (from the scan prompt). */
-export const PROJECT_MARKERS = ['package.json', 'pyproject.toml', 'requirements.txt', 'Dockerfile', 'index.html'] as const
+export function estimateCost(model: string, projects: number): number | null {
+  const per = COST_PER_PROJECT_USD[model]
+  return per === undefined || projects === 0 ? null : Math.round(per * projects * 100) / 100
+}

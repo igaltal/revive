@@ -108,24 +108,4 @@ describe('run facts and descriptions', () => {
     expect(r?.ok && r.manifest.projects[0]!.status).toBe('verified')
     expect(await updateProject(folder, 'nope', () => {})).toBe(false)
   })
-
-  it('applies descriptions only where not locked, and never blanks one', async () => {
-    const { sampleManifest } = await import('@shared/test-fixtures')
-    const { applyDescriptions, describeInputs } = await import('./manifest-store')
-    const m = sampleManifest()
-    m.projects.push({ ...structuredClone(m.projects[0]!), id: 'locked-he', path: 'b', user_locked: ['description.he'] })
-    m.projects.push({ ...structuredClone(m.projects[0]!), id: 'locked', path: 'c', user_locked: ['description'] })
-    expect(describeInputs(m).map((p) => p.id)).toEqual(['bakery-site', 'locked-he'])
-    const out = applyDescriptions(m, [
-      { id: 'bakery-site', en: 'New en', he: '' },
-      { id: 'locked-he', en: 'New en 2', he: 'חדש' },
-      { id: 'locked', en: 'x', he: 'y' },
-      { id: 'ghost', en: 'x', he: 'y' }
-    ])
-    expect(out.projects.map((p) => p.description)).toEqual([
-      { en: 'New en', he: 'אתר למאפייה שכונתית.' },
-      { en: 'New en 2', he: 'אתר למאפייה שכונתית.' },
-      { en: 'A website for a neighborhood bakery.', he: 'אתר למאפייה שכונתית.' }
-    ])
-  })
 })

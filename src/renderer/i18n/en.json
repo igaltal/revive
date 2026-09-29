@@ -278,10 +278,10 @@
       "example": "This is how technical details will look:"
     },
     "scanModel": {
-      "title": "Model for reading your folder",
-      "hint": "The Claude model used when Revive reads a folder. The default is quick and inexpensive.",
-      "haiku": "Quick and inexpensive",
-      "sonnet": "More thorough, costs more"
+      "title": "Model for describing your projects",
+      "hint": "Revive finds your projects on its own; this model only puts each new or changed one into words. About 2 cents a project with Sonnet, 1 with Haiku, nothing for unchanged ones.",
+      "haiku": "Cheaper, plainer words",
+      "sonnet": "Clearer descriptions, natural Hebrew (recommended)"
     },
     "version": "Revive {version}",
     "keepAgents": {
@@ -300,7 +300,7 @@
     "count": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}",
     "notRead": {
       "title": "Revive hasn't read this folder yet",
-      "body": "Claude will look through the folder and describe each project in plain words. It only reads, and Revive saves a version first."
+      "body": "Revive finds your projects on this computer, then Claude describes each one in plain words from a short summary. Your files are never changed."
     },
     "read": "Read my folder",
     "readAgain": "Read the folder again",
@@ -312,7 +312,10 @@
     "checkComputer": "Check my computer",
     "loose": "{count, plural, one {# file isn't part of any project.} other {# files aren't part of any project.}}",
     "looseList": "Loose files",
-    "costParts": "Cost of each step"
+    "costParts": "Cost of each step",
+    "summary": "{described, plural, =0 {Nothing new to describe} one {# new or changed project described} other {# new or changed projects described}}{unchanged, plural, =0 {.} other {, # unchanged.}}",
+    "failedSome": "{count, plural, one {# project couldn't be described this time. It keeps what it had and is tried again next reading.} other {# projects couldn't be described this time. They keep what they had and are tried again next reading.}}",
+    "cloudSome": "{count, plural, one {# project has files only in iCloud; those weren't read.} other {# projects have files only in iCloud; those weren't read.}}"
   },
   "history": {
     "subtitle": "Every saved version, so you can always go back.",
@@ -466,20 +469,33 @@
     "title": "Reading your folder",
     "badge": "Reading only",
     "phase": {
-      "saving": "Saving a version first, so nothing can be lost.",
-      "reading": "Claude is reading your projects.",
-      "checking": "Making sure nothing outside Revive's folder changed.",
-      "done": "Done.",
-      "describing": "Writing a short description of each project."
+      "saving": "Getting ready.",
+      "finding": "Finding your projects on this computer.",
+      "understanding": "Claude is describing new and changed projects in plain words.",
+      "checking": "Saving the list.",
+      "done": "Done."
     },
-    "timeNote": "This usually takes a minute or two.",
-    "filesRead": "{count, plural, one {# file read} other {# files read}}",
-    "projectsFound": "{count, plural, =0 {No projects found yet} one {# project found} other {# projects found}}",
+    "looking": "Looking through the folder…",
     "rootProject": "The folder itself",
-    "recent": "Files Claude read just now",
     "stop": "Stop reading",
-    "limits": "Limits for this reading",
-    "warmingUp": "Reading your folder…"
+    "limits": "How this reading works",
+    "count": {
+      "found": "Projects found",
+      "describing": "Described",
+      "unchanged": "{count, plural, one {# unchanged since last time} other {# unchanged since last time}}",
+      "cost": "Cost so far"
+    },
+    "money": "{cost, number, ::currency/USD}",
+    "estimate": "About {cost, number, ::currency/USD} for this reading",
+    "cloud": "{count, plural, one {# file is only in iCloud. Revive didn't download it.} other {# files are only in iCloud. Revive didn't download them.}}",
+    "state": {
+      "found": "Found",
+      "waiting": "Waiting",
+      "reading": "Describing…",
+      "done": "Done",
+      "unchanged": "Unchanged",
+      "failed": "Try again later"
+    }
   },
   "scanError": {
     "version_failed": "Revive couldn't save a version first, so it didn't read the folder. Nothing was changed.",

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
@@ -46,6 +46,21 @@ async function ensureShadowRepo(folder: string): Promise<void> {
   await git({ cwd: folder, gitDir }).raw(['config', 'core.bare', 'false'])
 }
 
+/** Removes an index lock older than ten minutes: no save takes that long, so its owner is gone. */
+export async function clearStaleLock(env: GitEnv): Promise<boolean> {
+  const index = env.indexFile ?? (env.gitDir ? join(env.gitDir, 'index') : null)
+  if (!index) return false
+  const lock = `${index}.lock`
+  try {
+    const s = await stat(lock)
+    if (Date.now() - s.mtimeMs < 10 * 60_000) return false
+    await rm(lock, { force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Seeds Revive's private index from the user's, so unchanged files are not re-read. */
 async function seedUserIndex(env: GitEnv): Promise<void> {
   if (!env.indexFile || existsSync(env.indexFile)) return
@@ -76,7 +91,8 @@ export async function discoverParts(folder: string): Promise<{ parts: Array<Pick
   const rootIsRepo = existsSync(join(folder, '.git'))
   const parts: Array<Pick<VersionPart, 'dir' | 'mode'>> = [{ dir: '.', mode: rootIsRepo ? 'user' : 'shadow' }]
   for (const r of repos) parts.push({ dir: r, mode: 'user' })
-  const bigFiles = files.filter((f) => f.size > MAX_FILE_BYTES).map((f) => f.rel)
+  // Too big to keep, or only in iCloud (git would download it to read it): left out of versions.
+  const bigFiles = files.filter((f) => f.size > MAX_FILE_BYTES || f.cloud).map((f) => f.rel)
   return { parts, bigFiles }
 }
 
@@ -124,7 +140,16 @@ export async function snapshotParts(folder: string, message = 'Revive: compariso
     const big = bigFiles.map((f) => within(part.dir, f)).filter((p): p is string => !!p)
     const pathspecs = ['.', ...ALWAYS_EXCLUDED.map(excludeGlob), ...nested.map(excludeLiteral), ...big.map(excludeLiteral)]
 
-    await g.raw(['add', '--all', '--ignore-errors', '--', ...pathspecs])
+    // A lock left by an interrupted save (Revive quit or crashed mid-way) would block every save after it.
+    await clearStaleLock(env)
+    // Through a file: a big folder can have more exclusions than a command line holds.
+    const specFile = join(reviveDir(folder), `pathspec-${process.pid}.txt`)
+    await writeFile(specFile, pathspecs.join('\0'))
+    try {
+      await g.raw(['add', '--all', '--ignore-errors', `--pathspec-from-file=${specFile}`, '--pathspec-file-nul'])
+    } finally {
+      await rm(specFile, { force: true })
+    }
     const tree = await g.raw(['write-tree'])
     const parent = (await g.raw(['rev-parse', '--quiet', '--verify', 'refs/revive/latest']).catch(() => '')).trim()
     const commitArgs = ['commit-tree', '--no-gpg-sign', tree.trim(), ...(parent ? ['-p', parent] : []), '-m', message]

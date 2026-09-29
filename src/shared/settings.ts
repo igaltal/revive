@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: null,
   claudeLanguage: 'same',
   detailLevel: 'simple',
-  scanModel: 'haiku',
+  scanModel: 'sonnet',
   recentFolders: [],
   keepAgentsRunning: true,
   lastFolder: null

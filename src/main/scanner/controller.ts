@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { ScanDone, ScanProgress } from '@shared/scan'
 import type { AgentAdapter } from './agent-adapter'
-import type { VersionRecord } from '@shared/versions'
 import { runScan } from './scan'
 
 /** One scan at a time for the whole app. */
@@ -10,7 +9,7 @@ export class ScanController {
 
   constructor(
     private readonly adapter: AgentAdapter,
-    private readonly events: { progress: (p: ScanProgress) => void; done: (d: ScanDone) => void; versionSaved?: (v: VersionRecord) => void },
+    private readonly events: { progress: (p: ScanProgress) => void; done: (d: ScanDone) => void },
     /** Runs first: stops anything Revive started, so a running dev server can't look like the scan changed files. */
     private readonly beforeScan: () => Promise<void> = async () => {}
   ) {}
@@ -21,7 +20,7 @@ export class ScanController {
     const abort = new AbortController()
     this.current = { scanId, folder, abort }
     void this.beforeScan()
-      .then(() => runScan(folder, { adapter: this.adapter, model, scanId, signal: abort.signal, onProgress: this.events.progress, onVersionSaved: this.events.versionSaved }))
+      .then(() => runScan(folder, { adapter: this.adapter, model, scanId, signal: abort.signal, onProgress: this.events.progress }))
       .catch((e: unknown): ScanDone => ({ scanId, ok: false, costUsd: null, costParts: [], error: { code: 'unknown', detail: [String((e as Error)?.message ?? e)] } }))
       .then((done) => {
         this.current = null

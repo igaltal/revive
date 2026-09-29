@@ -29,9 +29,17 @@ function ScanResult({ result, onCheckComputer }: { result: ScanDone; onCheckComp
     ) : null
 
   if (result.ok) {
+    const s = result.summary
     return (
-      <Notice tone="ok" testId="scan-result" actions={<Button variant="quiet" onClick={dismissResult}>{tx('common.continue')}</Button>}>
-        <p>{tx('projects.found', { count: result.manifest.projects.length })}</p>
+      <Notice tone={s.failed.length ? 'attention' : 'ok'} testId="scan-result" actions={<Button variant="quiet" onClick={dismissResult}>{tx('common.continue')}</Button>}>
+        <p>{tx('projects.found', { count: s.found })}</p>
+        {s.found > 0 ? (
+          <p className="text-sm text-muted" data-testid="scan-summary">
+            {tx('projects.summary', { described: s.understood, unchanged: s.unchanged })}
+          </p>
+        ) : null}
+        {s.failed.length ? <p data-testid="scan-failed">{tx('projects.failedSome', { count: s.failed.length })}</p> : null}
+        {s.withCloudOnly ? <p className="text-sm text-muted">{tx('projects.cloudSome', { count: s.withCloudOnly })}</p> : null}
         {cost}
         {parts ? <TechnicalDetails>{parts}</TechnicalDetails> : null}
       </Notice>

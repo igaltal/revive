@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, truncateSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, truncateSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -46,6 +46,26 @@ describe('saved versions without a git repo (shadow repo)', () => {
     expect(tree(folder, v.parts[0]!).sort()).toEqual(['notes.txt', 'site/index.html'])
     expect(existsSync(join(folder, '.revive/.gitignore'))).toBe(true)
     expect((await readVersions(folder)).map((r) => r.id)).toEqual([v.id])
+  })
+
+  it('leaves out files that are only in iCloud (never downloads them), and gets past a lock an interrupted save left', async () => {
+    const folder = mkdtempSync(join(tmpdir(), 'revive-v-'))
+    write(folder, 'site/index.html', '<h1>hi</h1>')
+    // A sparse file: a size but no data on disk, the way iCloud leaves an offloaded file.
+    write(folder, 'site/offloaded.psd', '')
+    truncateSync(join(folder, 'site/offloaded.psd'), 5000)
+    const first = await saveVersion(folder, title, 'manual')
+    expect(tree(folder, first.parts[0]!)).toEqual(['site/index.html'])
+
+    // An old lock (Revive quit in the middle of a save) no longer blocks saving.
+    const lock = join(folder, '.revive/git/index.lock')
+    writeFileSync(lock, '')
+    const old = new Date(Date.now() - 60 * 60_000)
+    utimesSync(lock, old, old)
+    write(folder, 'site/about.html', 'about')
+    const second = await saveVersion(folder, title, 'manual')
+    expect(tree(folder, second.parts[0]!).sort()).toEqual(['site/about.html', 'site/index.html'])
+    expect(existsSync(lock)).toBe(false)
   })
 
   it('puts a changed file back, and never touches .env', async () => {

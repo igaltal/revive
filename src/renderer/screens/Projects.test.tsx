@@ -86,20 +86,41 @@ describe('reading the folder', () => {
     fireEvent.click(await screen.findByTestId('scan-start'))
     await waitFor(() => expect(mock.calls.some((c) => c.channel === 'scan:start')).toBe(true))
 
+    const row = (id: string, name: string, state: string) => ({ id, name, path: id, state, cloudOnly: 0 })
     act(() =>
-      mock.emit('scan:progress', { scanId: 'scan-1', phase: 'reading', filesRead: 12, projectsFound: ['bakery-site', 'habit-counter'], recent: ['bakery-site/index.html'] })
+      mock.emit('scan:progress', {
+        scanId: 'scan-1',
+        phase: 'understanding',
+        projects: [row('bakery-site', 'Sunrise Bakery', 'done'), row('habit-counter', 'Habit counter', 'reading'), row('notes', 'Notes', 'unchanged')],
+        toUnderstand: 2,
+        understood: 1,
+        costUsd: 0.012,
+        estimateUsd: 0.02
+      } as never)
     )
     expect((await screen.findByTestId('scan-badge')).textContent).toBe('Reading only')
-    expect(screen.getByTestId('scan-files').textContent).toBe('12 files read')
-    expect(within(screen.getByTestId('scan-found')).getByText('habit-counter')).toBeTruthy()
+    // Every project by name, with its own state.
+    const rows = within(screen.getByTestId('scan-found')).getAllByTestId('scan-project')
+    expect(rows.map((r) => [r.textContent, r.getAttribute('data-state')])).toEqual([
+      ['Sunrise Bakerybakery-siteDone', 'done'],
+      ['Habit counterhabit-counterDescribing…', 'reading'],
+      ['NotesnotesUnchanged', 'unchanged']
+    ])
+    expect(screen.getByTestId('scan-found-count').textContent).toBe('3')
+    expect(screen.getByTestId('scan-progress').getAttribute('aria-valuenow')).toBe('50')
+    expect(screen.getByTestId('scan-cost-live').textContent).toContain('$0.01')
+    expect(screen.getByTestId('scan-cost-live').textContent).toContain('About $0.02 for this reading')
 
     await act(async () => fireEvent.click(screen.getByTestId('lang-he')))
-    await waitFor(() => expect(screen.getByTestId('scan-files').textContent).toBe('12 קבצים נקראו'))
-    expect(within(screen.getByTestId('scan-found')).getByText('habit-counter')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('scan-phase').textContent).toBe('Claude מתאר במילים פשוטות פרויקטים חדשים ופרויקטים שהשתנו.'))
+    expect(within(screen.getByTestId('scan-found')).getByText('Sunrise Bakery')).toBeTruthy()
 
     manifest = { state: 'ok', manifest: manifestWithStatuses() }
-    act(() => mock.emit('scan:done', { scanId: 'scan-1', ok: true, manifest: manifestWithStatuses(), costUsd: 0.04, costParts: [{ step: 'index', model: 'haiku', usd: 0.03 }, { step: 'describe', model: 'sonnet', usd: 0.01 }], versionId: 'v1' }))
-    expect((await screen.findByTestId('scan-result')).textContent).toContain('נמצאו 4 פרויקטים.')
+    const summary = { found: 4, understood: 3, unchanged: 1, failed: [], withCloudOnly: 0, slowFolders: 0 }
+    act(() => mock.emit('scan:done', { scanId: 'scan-1', ok: true, manifest: manifestWithStatuses(), costUsd: 0.04, costParts: [{ step: 'understand', model: 'sonnet', usd: 0.04 }], summary }))
+    const result = await screen.findByTestId('scan-result')
+    expect(result.textContent).toContain('נמצאו 4 פרויקטים.')
+    expect(within(result).getByTestId('scan-summary').textContent).toBe('תוארו 3 פרויקטים חדשים או ששונו, אחד לא השתנה.')
     await screen.findAllByTestId('project-card')
   })
 
@@ -133,19 +154,26 @@ describe('reading the folder', () => {
 })
 
 describe('reading the folder: first moments', () => {
-  it('says "Reading your folder" instead of "0 files read" until the first file arrives', async () => {
+  it('shows the folder being looked through before any project is found, then each one as it is found', async () => {
     const mock = installMockRevive(folder)
     renderApp()
     fireEvent.click(await screen.findByTestId('scan-start'))
     await screen.findByTestId('scan-badge')
-    expect(screen.getByTestId('scan-files').getAttribute('data-state')).toBe('waiting')
-    act(() => mock.emit('scan:progress', { scanId: 'scan-1', phase: 'reading', filesRead: 0, projectsFound: [], recent: [] }))
-    expect(screen.getByTestId('scan-files').textContent).toBe('Reading your folder…')
-    expect(screen.queryByText('0 files read')).toBeNull()
-    act(() => mock.emit('scan:progress', { scanId: 'scan-1', phase: 'reading', filesRead: 1, projectsFound: [], recent: ['a/index.html'] }))
-    expect(screen.getByTestId('scan-files').textContent).toBe('1 file read')
-    act(() => mock.emit('scan:progress', { scanId: 'scan-1', phase: 'describing', filesRead: 9, projectsFound: ['a'], recent: [] }))
-    expect(screen.getByTestId('scan-phase').textContent).toContain('Writing a short description of each project.')
+    expect(screen.getByText('Looking through the folder…')).toBeTruthy()
+    expect(screen.getByTestId('scan-progress').getAttribute('aria-valuenow')).toBeNull()
+    act(() => mock.emit('scan:progress', { scanId: 'scan-1', phase: 'finding', projects: [{ id: 'a', name: 'Alpha', path: 'a', state: 'found', cloudOnly: 3 }], toUnderstand: 0, understood: 0, costUsd: null, estimateUsd: null } as never))
+    expect(screen.getByTestId('scan-phase').textContent).toBe('Finding your projects on this computer.')
+    expect(screen.getByTestId('scan-cloud').textContent).toBe("3 files are only in iCloud. Revive didn't download them.")
+  })
+
+  it('says when some projects could not be described, and that they are tried again', async () => {
+    const mock = installMockRevive(folder, { 'manifest:get': () => ({ state: 'ok', manifest: manifestWithStatuses() }) })
+    renderApp()
+    await screen.findAllByTestId('project-card')
+    act(() => mock.emit('scan:done', { scanId: 's', ok: true, manifest: manifestWithStatuses(), costUsd: 0.02, costParts: [], summary: { found: 4, understood: 2, unchanged: 0, failed: ['x', 'y'], withCloudOnly: 1, slowFolders: 0 } }))
+    const result = await screen.findByTestId('scan-result')
+    expect(within(result).getByTestId('scan-failed').textContent).toBe("2 projects couldn't be described this time. They keep what they had and are tried again next reading.")
+    expect(result.textContent).toContain("1 project has files only in iCloud; those weren't read.")
   })
 
   it('shows the total cost, and each step with its model under Technical details', async () => {
@@ -159,16 +187,16 @@ describe('reading the folder: first moments', () => {
         manifest: manifestWithStatuses(),
         costUsd: 0.075,
         costParts: [
-          { step: 'index', model: 'haiku', usd: 0.05 },
-          { step: 'describe', model: 'sonnet', usd: 0.025 }
+          { step: 'understand', model: 'sonnet', usd: 0.05 },
+          { step: 'understand', model: 'sonnet', usd: 0.025 }
         ],
-        versionId: 'v'
+        summary: { found: 4, understood: 4, unchanged: 0, failed: [], withCloudOnly: 0, slowFolders: 0 }
       })
     )
     const result = await screen.findByTestId('scan-result')
     expect(within(result).getByTestId('scan-cost').textContent).toBe('Claude reported this reading as about $0.08 of usage.')
     fireEvent.click(within(result).getByText('Technical details'))
-    expect(within(result).getByText(/describe\s+sonnet\s+\$0\.0250/)).toBeTruthy()
+    expect(within(result).getByText(/understand\s+sonnet\s+\$0\.0250/)).toBeTruthy()
   })
 
   it("blocks everything, loudly, when Claude Code didn't stop at the turn limit", async () => {

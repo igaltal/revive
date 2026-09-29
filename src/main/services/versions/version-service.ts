@@ -17,6 +17,7 @@ export const EmptyTrashInput = z.object({ confirm: z.literal(true) })
 
 export const RESTORE_TITLE = { en: 'Before going back to an earlier version', he: 'לפני החזרה לגרסה קודמת' }
 export const UNDO_TITLE = { en: 'Before undoing a go back', he: 'לפני ביטול החזרה' }
+export const READ_TITLE = { en: 'When Revive read the folder', he: 'כש־Revive קרא את התיקייה' }
 export const MANUAL_TITLE = { en: 'Saved by you', he: 'נשמרה ידנית' }
 
 export interface VersionServiceDeps {
@@ -122,9 +123,13 @@ export class VersionService {
     await this.queue
   }
 
-  /** For the scan pipeline, which saves its own version first. */
-  announce(record: VersionRecord): void {
-    this.record(record)
+  /**
+   * After a reading: a restore point of the folder as it was read. In the
+   * background, after the reading is done (a first version of a big folder
+   * can take a while), and never a reason for the reading to fail.
+   */
+  saveAfterReading(): Promise<VersionSummary | null> {
+    return this.serial(async () => this.record(await saveVersion(await this.deps.folder(), READ_TITLE, 'scan'))).catch(() => null)
   }
 
   private bringBack(versionId: string, title: VersionRecord['title'], kind: VersionKind, projectId: string | undefined): Promise<RestoreResult> {

@@ -124,7 +124,7 @@ describe.each([
   const statuses = (projectId: string, from: StateEvent[]) =>
     from.flatMap((e) => (e.type === 'status.changed' && e.state.projectId === projectId ? [e.state.status] : []))
 
-  it('chooses a folder and reads it (a scan), with progress and the saved version on the stream', async () => {
+  it('chooses a folder and reads it (a scan), with each project’s progress on the stream', async () => {
     const settings: unknown[] = []
     h.client.subscribe('settings:changed', (s) => settings.push(s))
     expect(await h.client.invoke('folder:choose', { path: folder })).toMatchObject({ ok: true })
@@ -137,11 +137,10 @@ describe.each([
     const { scanId } = await h.client.invoke('scan:start')
     expect(scanId).toBeTruthy()
     await until('scan:done', () => done !== null)
-    expect(done).toMatchObject({ ok: true, costParts: [{ step: 'index' }, { step: 'describe' }] })
-    expect(progress).toEqual(expect.arrayContaining(['saving', 'reading', 'checking', 'done']))
-    expect(events.some((e) => e.type === 'version.saved' && e.version.kind === 'scan')).toBe(true)
+    expect(done).toMatchObject({ ok: true, costParts: [{ step: 'understand' }, { step: 'understand' }], summary: { found: 5, understood: 5 } })
+    expect(progress).toEqual(expect.arrayContaining(['finding', 'understanding', 'checking', 'done']))
     const m = await h.client.invoke('manifest:get')
-    expect(m.state === 'ok' && m.manifest.projects.map((p) => p.id)).toEqual(['bakery-site', 'habit-counter', 'noisy', 'flood', 'echo'])
+    expect(m.state === 'ok' && m.manifest.projects.map((p) => p.id)).toEqual(['bakery-site', 'echo', 'flood', 'habit-counter', 'noisy'])
   })
 
   it('starts and stops a run session, with its output on the session stream', async () => {

@@ -9,12 +9,29 @@ export interface WalkEntry {
   rel: string
   size: number
   mtimeMs: number
+  /** Offloaded to iCloud (a size, no data on this disk): opening it would download it. */
+  cloud: boolean
 }
 
 export interface WalkResult {
   files: WalkEntry[]
   /** Folders (relative) that hold their own git repository. */
   repos: string[]
+}
+
+/** A folder that takes longer than this to list (offloaded to iCloud, a slow drive) is left out. */
+const LIST_TIMEOUT_MS = 2000
+
+async function listNames(dir: string): Promise<string[] | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const slow = new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), LIST_TIMEOUT_MS)))
+    return await Promise.race([readdir(dir), slow])
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Walks a folder without following symlinks. Unreadable entries are skipped, never fatal. */
@@ -25,12 +42,8 @@ export async function walk(root: string, opts: { maxFiles?: number } = {}): Prom
   const toRel = (abs: string) => relative(root, abs).split(sep).join('/')
 
   async function visit(dir: string): Promise<void> {
-    let names: string[]
-    try {
-      names = await readdir(dir)
-    } catch {
-      return
-    }
+    const names = await listNames(dir)
+    if (!names) return
     if (dir !== root && names.includes('.git')) repos.push(toRel(dir))
     for (const name of names.sort()) {
       if (files.length >= maxFiles) return
@@ -44,7 +57,7 @@ export async function walk(root: string, opts: { maxFiles?: number } = {}): Prom
       if (st.isDirectory()) {
         if (!SKIP_DIRS.has(name)) await visit(abs)
       } else if (st.isFile() || st.isSymbolicLink()) {
-        files.push({ rel: toRel(abs), size: st.size, mtimeMs: st.mtimeMs })
+        files.push({ rel: toRel(abs), size: st.size, mtimeMs: st.mtimeMs, cloud: st.isFile() && st.size > 0 && st.blocks === 0 })
       }
     }
   }

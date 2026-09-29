@@ -72,16 +72,20 @@ export const ManifestStateSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('invalid'), issues: z.array(z.string()) })
 ]) satisfies z.ZodType<ManifestState>
 
-const ScanPhase = z.enum(['saving', 'reading', 'checking', 'describing', 'done'])
+const ScanPhase = z.enum(['saving', 'finding', 'understanding', 'checking', 'done'])
 export const ScanProgressSchema = z.object({
   scanId: z.string(),
   phase: ScanPhase,
-  filesRead: z.number().int().min(0),
-  projectsFound: z.array(z.string()),
-  recent: z.array(z.string())
+  projects: z.array(
+    z.object({ id: z.string(), name: z.string(), path: z.string(), state: z.enum(['found', 'waiting', 'reading', 'done', 'unchanged', 'failed']), cloudOnly: z.number().int().min(0) })
+  ),
+  toUnderstand: z.number().int().min(0),
+  understood: z.number().int().min(0),
+  costUsd: z.number().nullable(),
+  estimateUsd: z.number().nullable()
 }) satisfies z.ZodType<ScanProgress>
 
-const ScanCostPart = z.object({ step: z.enum(['index', 'describe']), model: z.string(), usd: z.number().nullable() })
+const ScanCostPart = z.object({ step: z.literal('understand'), model: z.string(), usd: z.number().nullable() })
 const ScanError = z.object({
   code: z.enum(['version_failed', 'claude_missing', 'auth', 'unsafe_claude', 'modified_outside', 'invalid_manifest', 'limit', 'timeout', 'cancelled', 'unknown']),
   restored: z.array(z.string()).optional(),
@@ -89,8 +93,16 @@ const ScanError = z.object({
   unrestorable: z.array(z.string()).optional(),
   detail: z.array(z.string()).optional()
 })
+const ScanSummarySchema = z.object({
+  found: z.number().int(),
+  understood: z.number().int(),
+  unchanged: z.number().int(),
+  failed: z.array(z.string()),
+  withCloudOnly: z.number().int(),
+  slowFolders: z.number().int()
+})
 export const ScanDoneSchema = z.discriminatedUnion('ok', [
-  z.object({ scanId: z.string(), ok: z.literal(true), manifest: ManifestSchema, costUsd: z.number().nullable(), costParts: z.array(ScanCostPart), versionId: z.string() }),
+  z.object({ scanId: z.string(), ok: z.literal(true), manifest: ManifestSchema, costUsd: z.number().nullable(), costParts: z.array(ScanCostPart), summary: ScanSummarySchema }),
   z.object({ scanId: z.string(), ok: z.literal(false), error: ScanError, costUsd: z.number().nullable(), costParts: z.array(ScanCostPart) })
 ]) satisfies z.ZodType<ScanDone>
 
