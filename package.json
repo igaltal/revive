@@ -1,7 +1,7 @@
 {
   "name": "revive",
   "productName": "Revive",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "description": "A calm home for everything you build with AI",
   "main": "./out/main/index.js",
@@ -71,5 +71,10 @@
     "ws": "^8.22.0",
     "zod": "^4.6.5"
   },
-  "author": "Igal Tal Merom"
+  "author": "Igal Tal Merom",
+  "homepage": "https://igaltal.github.io/revive/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/igaltal/revive.git"
+  }
 }

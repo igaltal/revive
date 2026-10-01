@@ -93,7 +93,7 @@ test('screenshots: every screen, both looks, both languages, desktop and phone',
   const userData = freshUserData()
   const folder = join(mkdtempSync(join(tmpdir(), 'revive-folder-')), 'my-ai-projects')
   cpSync('fixtures/showcase-folder', folder, { recursive: true })
-  const app = await launch(userData, { REVIVE_TEST_AGENT: resolve('fixtures/showcase-folder.manifest.json') })
+  const app = await launch(userData, { REVIVE_TEST_AGENT: resolve('fixtures/showcase-folder.manifest.json'), REVIVE_HOST_NAME: 'Studio Mac' })
   const win = await app.firstWindow()
   await win.getByTestId('welcome-en').click()
   await expect(win.getByTestId('prereq-continue')).toBeEnabled({ timeout: 30_000 })

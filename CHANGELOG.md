@@ -5,6 +5,19 @@ What changed in each version of Revive, in plain words. Versions follow
 middle one for new things, the first one for changes that need you to do
 something. Versions with `-beta.N` go to people on the beta channel first.
 
+## 0.12.0
+
+Reading your folder, rebuilt: much faster, much cheaper, and much clearer.
+
+- **Finds your projects on its own, in seconds.** Revive now works out what each project is made of, how it starts, which port it opens and which keys it needs straight from its files, without any AI. A folder of 150 projects takes a few seconds.
+- **Better descriptions, for cents.** Claude only writes the plain-language parts (a name, one sentence in English and natural Hebrew, and what each key is for), from a short summary Revive makes. It never sees your files. About 2 cents per project.
+- **Only what changed.** Projects that haven't changed since the last reading keep their description and cost nothing.
+- **See every project as it's read.** The reading screen lists each project by name with its own progress, the cost so far and an estimate.
+- **Works with iCloud Drive.** Revive never downloads files that are only in iCloud, and skips folders that don't answer quickly.
+- **Reading never stops your running projects** and never changes a file. A restore point is saved afterwards, in the background.
+- **Clearer project cards.** Projects without a picture yet show their own icon and color; "Not checked yet" is no longer shown as a warning; on phones the list is compact.
+- **Fixed:** a reading of a very large folder could get stuck while saving a version and never finish.
+
 ## 0.11.0
 
 The first version you can download and install like any other Mac app.

@@ -7,7 +7,7 @@ import boundary from './eslint-rules/renderer-boundary.js'
 import color from './eslint-rules/no-raw-color.js'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**', 'test-results/**', 'playwright-report/**'] },
+  { ignores: ['out/**', 'dist/**', 'node_modules/**', 'test-results/**', 'playwright-report/**', '.cache/**', 'release/**', 'screenshots/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

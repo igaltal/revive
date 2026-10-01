@@ -37,6 +37,8 @@ import { execFileSync } from 'node:child_process'
 
 /** The Mac's own name ("Noa's MacBook Air"), as devices will see it. */
 function computerName(): string {
+  // Unpackaged only: a stand-in name, so screenshots never show the real computer's.
+  if (!app.isPackaged && process.env['REVIVE_HOST_NAME']) return process.env['REVIVE_HOST_NAME']
   try {
     return execFileSync('/usr/sbin/scutil', ['--get', 'ComputerName'], { encoding: 'utf8', timeout: 2000 }).trim() || hostname()
   } catch {
