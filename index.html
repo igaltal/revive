@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Revive — a calm home for everything you build with AI</title>
+<meta name="description" content="Revive finds every project you built with AI, explains each one in plain words, and runs it with one click. For Mac, in English and Hebrew.">
+<meta name="theme-color" content="#0b1120">
+<meta property="og:title" content="Revive — a calm home for everything you build with AI">
+<meta property="og:description" content="Every project you built with AI, found, explained in plain words, and one click from running. For Mac.">
+<meta property="og:image" content="img/1440-scenic-en-1-home.jpg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/icon-256.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --night: #0b1120;
+  --night-2: #111a2e;
+  --ink: #f2f5fa;
+  --muted: rgba(242, 245, 250, 0.72);
+  --faint: rgba(242, 245, 250, 0.5);
+  --line: rgba(255, 255, 255, 0.12);
+  --glass: rgba(20, 28, 46, 0.62);
+  --ember: #ff8a4c;
+  --ember-deep: #d9480f;
+  --sky: #7fb8ff;
+  --leaf: #5fd38d;
+  --paper: #f4f2ec;
+  --paper-ink: #1b1a17;
+  --paper-muted: #6b675e;
+  --radius: 18px;
+  --display: 'Frank Ruhl Libre', Georgia, serif;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+  font: 17px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+.wrap { width: min(1180px, 100% - 40px); margin-inline: auto; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ember); }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font: 500 clamp(32px, 4.2vw, 48px)/1.12 var(--display); letter-spacing: -0.01em; }
+h3 { font: 600 19px/1.3 var(--sans); }
+p { margin: 0; }
+.lead { color: var(--muted); font-size: 19px; max-width: 62ch; }
+
+/* ---------- nav ---------- */
+.nav { position: sticky; top: 0; z-index: 20; padding-top: env(safe-area-inset-top, 0px); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); background: rgba(11, 17, 32, 0.72); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 22px/1 var(--display); color: var(--ember); }
+.brand img { width: 30px; height: 30px; }
+.nav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; }
+.nav-links a { text-decoration: none; color: var(--muted); }
+.nav-links a:hover { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 14px; font: 600 16px/1 var(--sans); text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
+.btn:focus-visible { outline: 2px solid var(--sky); outline-offset: 3px; }
+.btn-primary { background: linear-gradient(180deg, #ff9a5c, var(--ember-deep)); color: #fff; box-shadow: 0 10px 30px rgba(217, 72, 15, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 36px rgba(217, 72, 15, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.btn-ghost { background: rgba(255, 255, 255, 0.06); border-color: var(--line); color: var(--ink); }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.11); }
+.btn-small { min-height: 38px; padding: 0 16px; font-size: 14px; border-radius: 11px; }
+.apple { width: 18px; height: 18px; fill: currentColor; }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding: 90px 0 0; overflow: hidden; isolation: isolate; }
+.hero::before { content: ''; position: absolute; inset: 0; z-index: -2; background:
+  radial-gradient(1200px 520px at 70% 108%, rgba(255, 166, 110, 0.45), transparent 60%),
+  radial-gradient(900px 500px at 15% 100%, rgba(155, 123, 142, 0.35), transparent 60%),
+  linear-gradient(180deg, #0b1120 0%, #1a2644 42%, #394a74 70%, #6d5a72 100%); }
+.stars { position: absolute; inset: 0; z-index: -1; opacity: 0.6; background-image:
+  radial-gradient(1.2px 1.2px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 28% 8%, #fff 50%, transparent 51%),
+  radial-gradient(1.4px 1.4px at 44% 22%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 61% 12%, #fff 50%, transparent 51%),
+  radial-gradient(1.2px 1.2px at 77% 26%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 89% 9%, #fff 50%, transparent 51%),
+  radial-gradient(1px 1px at 8% 34%, #fff 50%, transparent 51%), radial-gradient(1.3px 1.3px at 53% 36%, #fff 50%, transparent 51%),
+  radial-gradient(1px 1px at 94% 40%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 36% 44%, #fff 50%, transparent 51%);
+  animation: twinkle 7s ease-in-out infinite alternate; }
+@keyframes twinkle { from { opacity: 0.35; } to { opacity: 0.7; } }
+.hero-copy { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); box-shadow: 0 0 10px var(--leaf); }
+.hero h1 { font: 500 clamp(44px, 7vw, 86px)/1.02 var(--display); letter-spacing: -0.02em; max-width: 15ch; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.25); }
+.hero h1 em { font-style: normal; background: linear-gradient(90deg, #ffd0a8, #ff8a4c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .lead { text-align: center; font-size: clamp(17px, 2vw, 21px); color: rgba(242, 245, 250, 0.86); }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.meta { font: 400 13px/1.5 var(--mono); color: var(--faint); }
+.meta [data-version] { color: var(--muted); }
+.stage { position: relative; margin: 64px auto 0; width: min(1120px, 100% - 40px); }
+.window { border-radius: 16px 16px 0 0; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.16); border-bottom: 0; box-shadow: 0 -10px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.3); background: #1d2236; }
+.window-bar { height: 34px; display: flex; align-items: center; gap: 8px; padding-inline: 14px; background: linear-gradient(180deg, #2a3048, #20253a); }
+.window-bar i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.window-bar i:nth-child(2) { background: #febc2e; }
+.window-bar i:nth-child(3) { background: #28c840; }
+.phone { position: absolute; inset-inline-end: -10px; bottom: -40px; width: clamp(150px, 19%, 220px); border-radius: 30px; overflow: hidden; border: 6px solid #10131d; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55); }
+.fade-bottom { position: relative; z-index: 2; height: 90px; margin-top: -90px; background: linear-gradient(180deg, transparent, var(--night)); }
+
+/* ---------- strip ---------- */
+.strip { padding: 34px 0; border-bottom: 1px solid var(--line); }
+.strip .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 34px; color: var(--faint); font-size: 15px; }
+.strip b { color: var(--muted); font-weight: 500; }
+
+/* ---------- sections ---------- */
+section { padding: 110px 0; }
+.section-head { display: flex; flex-direction: column; gap: 16px; margin-bottom: 52px; max-width: 760px; }
+.center { text-align: center; margin-inline: auto; align-items: center; }
+
+/* steps */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; counter-reset: step; }
+.step { position: relative; padding: 28px; border-radius: var(--radius); background: var(--glass); border: 1px solid var(--line); }
+.step .n { font: 500 13px var(--mono); color: var(--ember); }
+.step h3 { margin: 14px 0 8px; }
+.step p { color: var(--muted); font-size: 15.5px; }
+.step .tag { display: inline-block; margin-top: 16px; font: 500 12px var(--mono); color: var(--leaf); background: rgba(95, 211, 141, 0.1); border: 1px solid rgba(95, 211, 141, 0.25); padding: 4px 9px; border-radius: 999px; }
+
+/* features */
+.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.feature { padding: 28px; border-radius: var(--radius); background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.icon { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(0, 0, 0, 0.25); margin-bottom: 6px; }
+.icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.i1 { background: linear-gradient(160deg, #62a8ff, #2f6fe0); }
+.i2 { background: linear-gradient(160deg, #ff9a5c, #e0602a); }
+.i3 { background: linear-gradient(160deg, #3cc4b0, #1d8a7c); }
+.i4 { background: linear-gradient(160deg, #9b8cff, #6450e6); }
+.i5 { background: linear-gradient(160deg, #ff7fa0, #d9416a); }
+.i6 { background: linear-gradient(160deg, #6fdc8c, #2fa65a); }
+.feature p { color: var(--muted); font-size: 15.5px; }
+
+/* tour */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.tab { font: 500 15px var(--sans); color: var(--muted); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; cursor: pointer; }
+.tab[aria-selected='true'] { color: var(--night); background: var(--ink); border-color: var(--ink); }
+.tab:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.shot { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); }
+.caption { margin-top: 14px; color: var(--muted); font-size: 15px; }
+
+/* looks + languages: light section */
+.paper { background: var(--paper); color: var(--paper-ink); }
+.paper .lead { color: var(--paper-muted); }
+.paper .eyebrow { color: var(--ember-deep); }
+.duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.duo figure { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.duo .shot { box-shadow: 0 20px 50px rgba(27, 26, 23, 0.18); border-color: #e4e0d8; }
+.duo figcaption { font-size: 15px; color: var(--paper-muted); }
+.duo figcaption b { color: var(--paper-ink); }
+
+/* phone section */
+.split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px; align-items: center; }
+.phones { display: flex; justify-content: center; gap: 18px; }
+.phones img { width: min(46%, 240px); border-radius: 30px; border: 6px solid #10131d; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5); }
+.phones img:last-child { transform: translateY(40px); }
+.checks { list-style: none; padding: 0; margin: 26px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.checks li { display: flex; gap: 12px; color: var(--muted); }
+.checks li::before { content: ''; flex: none; width: 20px; height: 20px; margin-top: 3px; border-radius: 50%; background: rgba(95, 211, 141, 0.16) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235fd38d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/12px no-repeat; }
+
+/* privacy */
+.privacy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.fact { padding: 24px; border-radius: var(--radius); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+.fact strong { display: block; font: 500 30px/1.1 var(--display); color: var(--ink); margin-bottom: 8px; }
+.fact p { color: var(--muted); font-size: 15px; }
+
+/* download */
+.download { position: relative; overflow: hidden; isolation: isolate; }
+.download::before { content: ''; position: absolute; inset: 0; z-index: -1; background: url('img/sky-night.jpg') center 30% / cover; opacity: 0.4; }
+.download::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, var(--night), rgba(11, 17, 32, 0.6) 40%, var(--night)); }
+.dl-card { max-width: 880px; margin-inline: auto; padding: 44px; border-radius: 26px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%); display: flex; flex-direction: column; gap: 28px; }
+.dl-top { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.dl-top img { width: 84px; height: 84px; }
+.dl-top div { flex: 1; min-width: 240px; }
+.dl-top h2 { font-size: clamp(30px, 3.6vw, 40px); }
+.dl-specs { display: flex; flex-wrap: wrap; gap: 8px 22px; font: 400 13px/1.6 var(--mono); color: var(--faint); margin-top: 6px; }
+.install { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; counter-reset: s; }
+.install li { list-style: none; padding: 18px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); font-size: 15px; color: var(--muted); }
+.install li::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 138, 76, 0.16); color: var(--ember); font: 600 13px var(--mono); margin-bottom: 10px; }
+.install b { color: var(--ink); font-weight: 500; }
+.note { padding: 18px 20px; border-radius: 14px; background: rgba(255, 165, 82, 0.08); border: 1px solid rgba(255, 165, 82, 0.28); font-size: 15px; color: var(--muted); }
+.note b { color: #ffc48a; font-weight: 600; }
+code { font: 13.5px var(--mono); background: rgba(255, 255, 255, 0.08); padding: 2px 6px; border-radius: 6px; color: var(--ink); white-space: nowrap; }
+.dl-more { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 14px; color: var(--faint); }
+.dl-more a { color: var(--muted); }
+
+/* faq */
+.faq { max-width: 820px; margin-inline: auto; display: flex; flex-direction: column; gap: 10px; }
+details { border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.03); }
+summary { cursor: pointer; padding: 18px 22px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; color: var(--ember); font: 400 22px/1 var(--mono); }
+details[open] summary::after { content: '–'; }
+details p { padding: 0 22px 20px; color: var(--muted); font-size: 15.5px; }
+
+footer { padding: 48px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+footer a { color: var(--muted); text-decoration: none; }
+footer nav { display: flex; gap: 22px; flex-wrap: wrap; }
+
+.reveal { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .js .reveal.in { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .stars { animation: none; } html { scroll-behavior: auto; } }
+
+@media (max-width: 900px) {
+  .steps, .features, .install { grid-template-columns: 1fr; }
+  .privacy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .split { grid-template-columns: 1fr; gap: 40px; }
+  .duo { grid-template-columns: 1fr; }
+  .nav-links a:not(.btn) { display: none; }
+}
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  section { padding: 80px 0; }
+  .hero { padding-top: 60px; }
+  .privacy { grid-template-columns: 1fr; }
+  .dl-card { padding: 26px; }
+  .phone { display: none; }
+  .cta .btn { width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="img/icon-256.png" alt="">Revive</a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/igaltal/revive">GitHub</a>
+      <a class="btn btn-primary btn-small" href="#download" data-download-link>Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="stars" aria-hidden="true"></div>
+    <div class="wrap hero-copy">
+      <span class="pill"><span class="dot"></span>Free early access for Mac</span>
+      <h1 id="hero-title">Everything you built with AI, <em>back in one place.</em></h1>
+      <p class="lead">Revive finds every project in your folder, tells you in plain words what each one is, and runs it with one click. No code to read, nothing to configure.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/igaltal/revive/releases/latest/download/Revive.dmg" data-download>
+          <svg class="apple" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.03-2.7 2.2-4 2.3-4.07-1.26-1.84-3.21-2.09-3.9-2.12-1.66-.17-3.24.98-4.08.98-.85 0-2.14-.96-3.52-.93-1.81.03-3.48 1.05-4.41 2.67-1.88 3.26-.48 8.09 1.35 10.74.9 1.3 1.96 2.75 3.36 2.7 1.35-.05 1.86-.87 3.49-.87 1.63 0 2.09.87 3.51.84 1.45-.03 2.37-1.32 3.26-2.62 1.03-1.5 1.45-2.96 1.48-3.03-.03-.01-2.84-1.09-2.87-4.33zM13.69 4.67c.74-.9 1.24-2.15 1.11-3.39-1.07.04-2.36.71-3.13 1.61-.69.79-1.29 2.06-1.13 3.28 1.19.09 2.41-.61 3.15-1.5z"/></svg>
+          Download for Mac
+        </a>
+        <a class="btn btn-ghost" href="#how">See how it works</a>
+      </div>
+      <p class="meta"><span data-version>Latest version</span> · macOS 11 or later · Apple silicon and Intel · English and Hebrew</p>
+    </div>
+    <div class="stage">
+      <div class="window">
+        <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="img/1440-scenic-en-1-home.jpg" width="1440" height="1024" alt="Revive's Home screen: a clock over an evening mountain scene, a command bar, eight colorful project tiles, and the computer's health.">
+      </div>
+      <img class="phone" src="img/390-scenic-en-1-home.jpg" width="780" height="1688" alt="Revive on an iPhone: the same Home, made for a phone." loading="lazy">
+    </div>
+    <div class="fade-bottom" aria-hidden="true"></div>
+  </section>
+
+  <div class="strip">
+    <div class="wrap">
+      <span>Works with <b>Claude Code</b></span>
+      <span>·</span>
+      <span><b>Codex</b></span>
+      <span>·</span>
+      <span><b>Vite, Next.js, React, Python, plain HTML</b> and more</span>
+      <span>·</span>
+      <span>Your phone, over <b>Tailscale</b></span>
+    </div>
+  </div>
+
+  <section id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">How it works</span>
+        <h2 id="how-title">Point it at your folder. That's the setup.</h2>
+        <p class="lead">Most people who build with AI end up with a folder full of half-remembered projects. Revive turns that folder into a calm, clear list.</p>
+      </div>
+      <div class="steps">
+        <article class="step reveal">
+          <span class="n">01</span>
+          <h3>Choose the folder you build in</h3>
+          <p>The one where Claude Code, Codex, Lovable or Bolt exports end up. Revive only reads it.</p>
+        </article>
+        <article class="step reveal">
+          <span class="n">02</span>
+          <h3>Revive finds every project</h3>
+          <p>On your Mac, in seconds: what each project is made of, how it starts, which port it opens and which keys it needs. No AI involved, no cost.</p>
+          <span class="tag">151 projects in 6 seconds</span>
+        </article>
+        <article class="step reveal">
+          <span class="n">03</span>
+          <h3>Claude explains each one</h3>
+          <p>One plain sentence per project, in English and Hebrew, from a short summary. Only new or changed projects are sent next time.</p>
+          <span class="tag">about 2¢ a project</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" aria-labelledby="features-title" style="padding-top: 0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">What you can do</span>
+        <h2 id="features-title">Everything a project needs, without reading code.</h2>
+      </div>
+      <div class="features">
+        <article class="feature reveal">
+          <div class="icon i1"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg></div>
+          <h3>Run it with one click</h3>
+          <p>Revive installs what's missing, starts the project and shows it live inside the app. If something's wrong, it tells you why in one sentence.</p>
+        </article>
+        <article class="feature reveal">
+          <div class="icon i2"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg></div>
+          <h3>Go back in time</h3>
+          <p>Saved versions of your folder, with plain titles. An agent broke something? Go back, for one project or all of them, and undo that too.</p>
+        </article>
+        <article class="feature reveal">
+          <div class="icon i3"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+          <h3>Agents that keep working</h3>
+          <p>Open Claude Code, Codex or a terminal in any project. Close Revive and they keep running; come back and pick up exactly where they were.</p>
+        </article>
+        <article class="feature reveal">
+          <div class="icon i4"><svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"/></svg></div>
+          <h3>Your projects on your phone</h3>
+          <p>Share your Mac with your own devices over Tailscale. Pair a phone with a six-digit code and run, check and type into agents from anywhere.</p>
+        </article>
+        <article class="feature reveal">
+          <div class="icon i5"><svg viewBox="0 0 24 24"><path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z"/></svg></div>
+          <h3>A screen worth keeping open</h3>
+          <p>A Home with a live sky that follows sunrise and sunset, your projects as tiles, your computer's health, and screensavers that wake when an agent needs you.</p>
+        </article>
+        <article class="feature reveal">
+          <div class="icon i6"><svg viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <h3>Private by design</h3>
+          <p>Your files stay on your Mac. Revive never opens your secret files and never changes your projects when it reads them.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="tour-title" style="padding-top: 0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">A closer look</span>
+        <h2 id="tour-title">Calm screens for a busy folder.</h2>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Screens">
+        <button class="tab" role="tab" aria-selected="true" aria-controls="tour-shot" data-src="img/1440-scenic-en-1-home.jpg" data-caption="Home: your projects with live status, a command bar that opens any project with an agent, and your Mac's health.">Home</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="tour-shot" data-src="img/1440-scenic-en-2-gallery.jpg" data-caption="My projects: every project with what it is, whether it works, and the one action that fits.">My projects</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="tour-shot" data-src="img/1440-scenic-en-3-project.jpg" data-caption="A project: start it, see it live, open an agent in its folder, and go back to an earlier version.">A project</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="tour-shot" data-src="img/1440-scenic-en-4-terminal.jpg" data-caption="Terminals: Claude Code, Codex or a shell, kept running in the background, on your Mac or your phone.">Terminal</button>
+      </div>
+      <div class="shot reveal" id="tour-shot" role="tabpanel">
+        <img src="img/1440-scenic-en-1-home.jpg" width="1440" height="1024" alt="Revive's Home screen" data-tour-img loading="lazy">
+      </div>
+      <p class="caption" data-tour-caption>Home: your projects with live status, a command bar that opens any project with an agent, and your Mac's health.</p>
+    </div>
+  </section>
+
+  <section class="paper" aria-labelledby="looks-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Two looks, two languages</span>
+        <h2 id="looks-title">Scenic or Paper. English or Hebrew.</h2>
+        <p class="lead">Frosted glass over a living landscape, or a warm, quiet page. Every screen works right to left and left to right, and each device keeps its own look.</p>
+      </div>
+      <div class="duo">
+        <figure class="reveal">
+          <div class="shot"><img src="img/1440-paper-en-1-home.jpg" width="1440" height="1024" alt="Revive's Home in the Paper look" loading="lazy"></div>
+          <figcaption><b>Paper.</b> Light, calm and plain, for working all day.</figcaption>
+        </figure>
+        <figure class="reveal">
+          <div class="shot"><img src="img/1440-scenic-he-1-home.jpg" width="1440" height="1024" alt="Revive's Home in Hebrew, right to left" loading="lazy"></div>
+          <figcaption><b>עברית.</b> The whole app in Hebrew, right to left, with natural descriptions.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="phone-title">
+    <div class="wrap split">
+      <div class="reveal">
+        <span class="eyebrow">On the go</span>
+        <h2 id="phone-title" style="margin-top: 14px">Your Mac does the work. Your phone keeps an eye on it.</h2>
+        <ul class="checks">
+          <li>Pair a phone or another computer with a six-digit code you allow on the Mac.</li>
+          <li>Reach it from anywhere through Tailscale, over a private HTTPS address.</li>
+          <li>Run projects and type into Claude Code with a key row made for agents.</li>
+          <li>Install it on your home screen like an app. Revoke a device in one tap.</li>
+        </ul>
+      </div>
+      <div class="phones reveal">
+        <img src="img/390-scenic-en-4-terminal.jpg" width="780" height="1688" alt="A terminal on an iPhone with a row of keys for agents" loading="lazy">
+        <img src="img/390-paper-en-2-gallery.jpg" width="780" height="1688" alt="The project list on an iPhone" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="privacy-title" style="padding-top: 0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Your work stays yours</span>
+        <h2 id="privacy-title">It reads. It doesn't touch.</h2>
+      </div>
+      <div class="privacy">
+        <div class="fact reveal"><strong>Local</strong><p>Projects, versions and settings live on your Mac. There's no Revive account and no Revive server.</p></div>
+        <div class="fact reveal"><strong>Read only</strong><p>Reading a folder never changes a file. Claude gets a short summary, never your files, and has no tools.</p></div>
+        <div class="fact reveal"><strong>Secrets stay shut</strong><p>.env files, keys and certificates are never opened. Only the names of the keys a project needs are shown.</p></div>
+        <div class="fact reveal"><strong>Undo</strong><p>Every go-back saves first and moves new files aside instead of deleting them.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="download" class="download" aria-labelledby="dl-title">
+    <div class="wrap">
+      <div class="dl-card reveal">
+        <div class="dl-top">
+          <img src="img/icon-256.png" width="84" height="84" alt="">
+          <div>
+            <h2 id="dl-title">Download Revive for Mac</h2>
+            <div class="dl-specs"><span data-version>Latest version</span><span data-size></span><span data-date></span><span>Apple silicon and Intel</span><span>macOS 11 or later</span></div>
+          </div>
+          <a class="btn btn-primary" href="https://github.com/igaltal/revive/releases/latest/download/Revive.dmg" data-download>
+            <svg class="apple" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.03-2.7 2.2-4 2.3-4.07-1.26-1.84-3.21-2.09-3.9-2.12-1.66-.17-3.24.98-4.08.98-.85 0-2.14-.96-3.52-.93-1.81.03-3.48 1.05-4.41 2.67-1.88 3.26-.48 8.09 1.35 10.74.9 1.3 1.96 2.75 3.36 2.7 1.35-.05 1.86-.87 3.49-.87 1.63 0 2.09.87 3.51.84 1.45-.03 2.37-1.32 3.26-2.62 1.03-1.5 1.45-2.96 1.48-3.03-.03-.01-2.84-1.09-2.87-4.33zM13.69 4.67c.74-.9 1.24-2.15 1.11-3.39-1.07.04-2.36.71-3.13 1.61-.69.79-1.29 2.06-1.13 3.28 1.19.09 2.41-.61 3.15-1.5z"/></svg>
+            Download .dmg
+          </a>
+        </div>
+        <ol class="install">
+          <li><b>Open the download.</b> A window shows Revive and your Applications folder.</li>
+          <li><b>Drag Revive onto Applications.</b> Then open it from Applications or Launchpad.</li>
+          <li><b>Choose your folder.</b> Revive checks your Mac, then finds your projects.</li>
+        </ol>
+        <p class="note"><b>Early access:</b> this build isn't notarized by Apple yet, so the first time macOS will say it can't check it. Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to Revive. You only do this once. (Or in Terminal: <code>xattr -dr com.apple.quarantine /Applications/Revive.app</code>)</p>
+        <div class="dl-more">
+          <span>To read your folder you'll need <a href="https://code.claude.com/docs/en/setup">Claude Code</a>, signed in. Revive can install it for you.</span>
+          <a href="https://github.com/igaltal/revive/releases">All versions</a>
+          <a href="https://github.com/igaltal/revive/blob/main/CHANGELOG.md">What's new</a>
+          <a href="https://github.com/igaltal/revive/archive/refs/heads/main.zip">Source code (.zip)</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="section-head center reveal">
+        <span class="eyebrow">Questions</span>
+        <h2 id="faq-title">Good to know</h2>
+      </div>
+      <div class="faq">
+        <details class="reveal"><summary>Is Revive free?</summary><p>Yes, during early access. Reading a folder uses your own Claude account: about two cents per new or changed project, and nothing for projects that haven't changed.</p></details>
+        <details class="reveal"><summary>Will it change my projects?</summary><p>Reading never changes a file; Revive only writes its own notes in a hidden .revive folder. When you start a project it may install its dependencies, and going back to a saved version always saves first so you can undo.</p></details>
+        <details class="reveal"><summary>Do I need to know how to code?</summary><p>No. Revive is made for people who build with AI and don't read code. Everything is in plain words, and the technical details stay folded away until you want them.</p></details>
+        <details class="reveal"><summary>What does it need on my Mac?</summary><p>macOS 11 or later on Apple silicon or Intel. To read folders, Claude Code signed in to your account. Revive brings everything else it needs, including tmux for sessions that keep running.</p></details>
+        <details class="reveal"><summary>My folder is in iCloud Drive. Is that OK?</summary><p>Yes. Revive never downloads files that are only in iCloud; it reads what's on your Mac and tells you how many files it skipped.</p></details>
+        <details class="reveal"><summary>How do updates work?</summary><p>For now, download the newest version from this page; it replaces the old one and keeps your settings. Automatic background updates turn on with the first notarized build.</p></details>
+        <details class="reveal"><summary>Is there Windows or Linux?</summary><p>Not yet. Revive is Mac only for now; you can use it from any phone or computer's browser by pairing it with your Mac.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Revive · Made for people who build with AI</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/igaltal/revive">GitHub</a>
+      <a href="https://github.com/igaltal/revive/releases">Releases</a>
+      <a href="https://github.com/igaltal/revive/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/igaltal/revive/issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+document.documentElement.classList.add('js')
+
+// The newest release from GitHub: its version, size and date, and a direct link to its disk image.
+fetch('https://api.github.com/repos/igaltal/revive/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+  .then((r) => (r.ok ? r.json() : null))
+  .then((release) => {
+    if (!release) return
+    const dmg = (release.assets || []).find((a) => /\.dmg$/i.test(a.name) && !/blockmap/i.test(a.name))
+    const version = String(release.tag_name || '').replace(/^v/, '')
+    document.querySelectorAll('[data-version]').forEach((el) => (el.textContent = version ? `Version ${version}` : el.textContent))
+    if (dmg) {
+      document.querySelectorAll('[data-download]').forEach((a) => (a.href = dmg.browser_download_url))
+      document.querySelectorAll('[data-size]').forEach((el) => (el.textContent = `${Math.round(dmg.size / 1048576)} MB`))
+    }
+    if (release.published_at) {
+      const d = new Date(release.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      document.querySelectorAll('[data-date]').forEach((el) => (el.textContent = `Released ${d}`))
+    }
+  })
+  .catch(() => {})
+
+// The tour.
+const tabs = [...document.querySelectorAll('.tab')]
+const img = document.querySelector('[data-tour-img]')
+const caption = document.querySelector('[data-tour-caption]')
+tabs.forEach((tab, i) => {
+  tab.addEventListener('click', () => {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t === tab)))
+    img.src = tab.dataset.src
+    img.alt = tab.textContent + ' screen'
+    caption.textContent = tab.dataset.caption
+  })
+  tab.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
+    next.focus()
+    next.click()
+  })
+})
+
+// Sections ease in as they come into view (visible from the start without JS or with reduced motion).
+const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && (e.target.classList.add('in'), io.unobserve(e.target))), { rootMargin: '0px 0px -8% 0px' }) : null
+document.querySelectorAll('.reveal').forEach((el) => (io ? io.observe(el) : el.classList.add('in')))
+</script>
+</body>
+</html>
