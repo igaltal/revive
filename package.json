@@ -22,7 +22,8 @@
     "build:tmux": "./scripts/build-tmux.sh",
     "dist": "npm run build && npm run build:tmux && electron-builder --config electron-builder.config.cjs --mac --publish never",
     "release": "npm run build && npm run build:tmux && electron-builder --config electron-builder.config.cjs --mac --publish always",
-    "test:packaged": "playwright test --config e2e/packaged.config.ts"
+    "test:packaged": "playwright test --config e2e/packaged.config.ts",
+    "site:publish": "git subtree split --prefix site -b gh-pages-tmp && git push -f origin gh-pages-tmp:gh-pages && git branch -D gh-pages-tmp"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
