@@ -1042,3 +1042,21 @@ No UI changes beyond the requested "Update ready" note. Version **0.11.0**.
 **Notes for you**
 - `~/Projects/.revive/git` holds 1.3 GB left by the interrupted save, with no version pointing to it. It's safe to reclaim with `git --git-dir ~/Projects/.revive/git gc --prune=now`. I didn't run it, because it's your disk.
 - Reading all of `~/Projects` for the first time would describe 151 projects, about $3 with Sonnet. After that, only changed projects cost anything.
+
+### Website and public release (2026-10-01): 0.12.0
+
+- **Public repository:** https://github.com/igaltal/revive. Code, README, CHANGELOG and releases. The README states "all rights reserved": readable and buildable, not licensed for reuse.
+- **Website:** https://igaltal.github.io/revive/ (`site/`, plain HTML and CSS).
+  - Real screenshots, taken with a stand-in computer name ("Studio Mac", `REVIVE_HOST_NAME`, unpackaged builds only).
+  - The download button reads the newest release from GitHub's API (version, size, date, direct .dmg link), and falls back to the stable `releases/latest/download/Revive.dmg`.
+  - Honest install steps for a build that isn't notarized yet.
+  - Published from the `gh-pages` branch with `npm run site:publish`.
+- **Release v0.12.0:**
+  - Files: `Revive-0.12.0-universal.dmg`, the same file as `Revive.dmg` (a name that never changes), the update ZIP, and `SHA256SUMS.txt`.
+  - Installed from that DMG and tested on both architectures before upload.
+  - The public download was verified byte for byte.
+- **No update feed in unsigned builds:** an ad hoc build can't install updates (macOS checks they're signed by the same Developer ID), so the app would download 235 MB for nothing. Feeds come back with the first signed build.
+- **GitHub Actions are blocked on the account** ("account is locked due to a billing issue"):
+  - CI and the release workflow can't run.
+  - Pages from a branch still works, which is why the site uses `gh-pages` instead of a workflow.
+  - The release was built and uploaded from this Mac with `gh`.
